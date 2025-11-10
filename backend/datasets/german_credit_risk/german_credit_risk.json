@@ -1,0 +1,178 @@
+{
+  "dataset_info": {
+    "name": "German Credit Risk",
+    "description": "Dataset for binary classification of credit risk",
+    "target_variable": {
+      "name": "target",
+      "values": {
+        "1": "Good client (low risk)",
+        "2": "Bad client (high risk)"
+      }
+    }
+  },
+  "attributes": {
+    "status_existing_checking": {
+      "description": "Status of existing checking account",
+      "type": "categorical",
+      "values": {
+        "A11": "< 0 DM (negative balance)",
+        "A12": "0 <= ... < 200 DM",
+        "A13": ">= 200 DM",
+        "A14": "No checking account"
+      }
+    },
+    "duration_month": {
+      "description": "Loan duration in months",
+      "type": "numerical"
+    },
+    "credit_history": {
+      "description": "Credit history",
+      "type": "categorical",
+      "values": {
+        "A30": "No credits taken / all credits paid back duly",
+        "A31": "All credits at this bank paid back duly",
+        "A32": "Existing credits paid back duly till now",
+        "A33": "Delay in paying off in the past",
+        "A34": "Critical account / other credits existing"
+      }
+    },
+    "purpose": {
+      "description": "Purpose of the loan",
+      "type": "categorical",
+      "values": {
+        "A40": "Car (new)",
+        "A41": "Car (used)",
+        "A42": "Furniture/equipment",
+        "A43": "Radio/television",
+        "A44": "Domestic appliances",
+        "A45": "Repairs",
+        "A46": "Education",
+        "A47": "Vacation",
+        "A48": "Retraining",
+        "A49": "Business",
+        "A410": "Other"
+      }
+    },
+    "credit_amount": {
+      "description": "Credit amount in DM",
+      "type": "numerical"
+    },
+    "savings": {
+      "description": "Savings account/bonds",
+      "type": "categorical",
+      "values": {
+        "A61": "< 100 DM",
+        "A62": "100 <= ... < 500 DM",
+        "A63": "500 <= ... < 1000 DM",
+        "A64": ">= 1000 DM",
+        "A65": "Unknown/no savings"
+      }
+    },
+    "employment": {
+      "description": "Present employment since",
+      "type": "categorical",
+      "values": {
+        "A71": "Unemployed",
+        "A72": "< 1 year",
+        "A73": "1 <= ... < 4 years",
+        "A74": "4 <= ... < 7 years",
+        "A75": ">= 7 years"
+      }
+    },
+    "installment_rate": {
+      "description": "Installment rate as percentage of disposable income",
+      "type": "numerical",
+      "range": "1-4"
+    },
+    "personal_status_sex": {
+      "description": "Personal status and sex",
+      "type": "categorical",
+      "values": {
+        "A91": "Male: divorced/separated",
+        "A92": "Female: divorced/separated/married",
+        "A93": "Male: single",
+        "A94": "Male: married/widowed",
+        "A95": "Female: single"
+      }
+    },
+    "other_debtors": {
+      "description": "Other debtors / guarantors",
+      "type": "categorical",
+      "values": {
+        "A101": "None",
+        "A102": "Co-applicant",
+        "A103": "Guarantor"
+      }
+    },
+    "residence_since": {
+      "description": "Present residence since (years)",
+      "type": "numerical"
+    },
+    "property": {
+      "description": "Property",
+      "type": "categorical",
+      "values": {
+        "A121": "Real estate",
+        "A122": "Building society savings agreement/life insurance",
+        "A123": "Car or other",
+        "A124": "Unknown / no property"
+      }
+    },
+    "age": {
+      "description": "Age in years",
+      "type": "numerical"
+    },
+    "other_installment_plans": {
+      "description": "Other installment plans",
+      "type": "categorical",
+      "values": {
+        "A141": "Bank",
+        "A142": "Stores",
+        "A143": "None"
+      }
+    },
+    "housing": {
+      "description": "Housing",
+      "type": "categorical",
+      "values": {
+        "A151": "Rent",
+        "A152": "Own",
+        "A153": "For free"
+      }
+    },
+    "existing_credits": {
+      "description": "Number of existing credits at this bank",
+      "type": "numerical"
+    },
+    "job": {
+      "description": "Job",
+      "type": "categorical",
+      "values": {
+        "A171": "Unemployed/unskilled - non-resident",
+        "A172": "Unskilled - resident",
+        "A173": "Skilled employee / official",
+        "A174": "Management/self-employed/highly qualified employee"
+      }
+    },
+    "people_liable": {
+      "description": "Number of people being liable to provide maintenance for",
+      "type": "numerical"
+    },
+    "telephone": {
+      "description": "Telephone",
+      "type": "categorical",
+      "values": {
+        "A191": "No",
+        "A192": "Yes"
+      }
+    },
+    "foreign_worker": {
+      "description": "Foreign worker",
+      "type": "categorical",
+      "values": {
+        "A201": "Yes",
+        "A202": "No"
+      }
+    }
+  }
+}
