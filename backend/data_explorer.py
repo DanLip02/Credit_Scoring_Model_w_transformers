@@ -21,12 +21,15 @@ def load_data(filepath="german_credit_data.csv"):
     df["target"] = df["target"].map({1:0, 2:1})
     return df
 
+def add_features(df):
+    # example: add log credit amount and amount per month
+    # if "credit_amount" in df.columns and "duration_month" in df.columns:
+    df["credit_amount_log"] = np.log1p(df["credit_amount"])
+    df["amount_per_month"] = df["credit_amount"] / (df["duration_month"].replace(0,1))
+    return df
+
 def split_data(df, test_size=0.2, random_state=42):
-    X = df.drop("target", axis=1)
-    log_credit_amount = np.log1p(X["credit_amount"])
-    X = df.drop("credit_amount", axis=1)
-    # добавляем новый столбец в X
-    X = pd.concat([X, log_credit_amount.rename("credit_amount_log")], axis=1)
+    X = df.drop(["target", "credit_amount", 'Unnamed: 0'], axis=1)
     y = df["target"]
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=random_state, stratify=y
