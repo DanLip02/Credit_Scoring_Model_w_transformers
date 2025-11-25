@@ -1,4 +1,4 @@
-from data_explorer import load_data, split_data, get_preprocessor
+from data_explorer import *
 from baselines import run_model, get_baseline_models
 from train_transformers import fit_tabtransformer
 import numpy as np
@@ -10,6 +10,8 @@ import os
 if __name__ == '__main__':
     # df = load_data("/Users/danilalipatov/Credit_Scoring_Model_w_transformers/backend/datasets/german_credit_risk/german_credit_risk.csv")
     df = load_data(r"C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\backend\datasets\german_credit_risk\german_credit_risk.csv")
+    df = add_features(df)
+
     X_train, X_test, y_train, y_test = split_data(df)
     preprocessor = get_preprocessor(X_train)
 
