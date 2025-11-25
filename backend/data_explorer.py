@@ -4,6 +4,7 @@ import os
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.compose import ColumnTransformer
+import numpy as np
 
 def load_german_credit_risk():
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -22,6 +23,10 @@ def load_data(filepath="german_credit_data.csv"):
 
 def split_data(df, test_size=0.2, random_state=42):
     X = df.drop("target", axis=1)
+    log_credit_amount = np.log1p(X["credit_amount"])
+    X = df.drop("credit_amount", axis=1)
+    # добавляем новый столбец в X
+    X = pd.concat([X, log_credit_amount.rename("credit_amount_log")], axis=1)
     y = df["target"]
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=test_size, random_state=random_state, stratify=y
