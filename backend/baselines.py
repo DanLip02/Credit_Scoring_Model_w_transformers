@@ -12,7 +12,7 @@ from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classificat
 from imblearn.pipeline import Pipeline
 from catboost import CatBoostClassifier
 from imblearn.over_sampling import SMOTE
-
+from sklearn.model_selection import KFold, cross_val_score
 """
 There will be some models that are really popular in credit risk modeling
 
@@ -45,6 +45,12 @@ def run_model(preprocessor, X_train, X_test, y_train, y_test, model, name="model
     auc = roc_auc_score(y_test, y_proba)
     print(f"\n=== {name} ===")
     print(f"AUC: {auc:.4f}")
+    print(classification_report(y_test, y_pred))
+    # --- независимая метрика: KFold AUC ---
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    cv_auc = cross_val_score(pipe, X_train, y_train, cv=kf,
+                             scoring="roc_auc", n_jobs=-1)
+    print(f"AUC (5-fold CV): mean={cv_auc.mean():.4f} | std={cv_auc.std():.4f}")
     print(classification_report(y_test, y_pred))
     return {"AUC": auc, "Report": classification_report(y_test, y_pred, output_dict=True)}
 
