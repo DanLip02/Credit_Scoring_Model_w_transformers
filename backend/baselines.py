@@ -9,8 +9,9 @@ from sklearn.linear_model import LogisticRegression, LinearRegression
 from xgboost import XGBClassifier
 from sklearn.metrics import f1_score, roc_auc_score, accuracy_score, classification_report
 # from sklearn.pipeline import Pipeline
-from imblearn.pipeline import Pipeline
+from imblearn.pipeline import Pipeline as ImbPipeline
 from catboost import CatBoostClassifier
+from sklearn.pipeline import Pipeline
 from imblearn.over_sampling import SMOTE
 from sklearn.model_selection import KFold, cross_val_score
 """
@@ -31,12 +32,19 @@ Logisticregression / LinearRegression / RidgeRegression / LasssoRegression and o
 """
 
 
-def run_model(preprocessor, X_train, X_test, y_train, y_test, model, name="model"):
-    pipe = Pipeline([
-        ("preprocess", preprocessor),
-        ("smote",  SMOTE(random_state=42)),
-        ("clf", model)
-    ])
+def run_model(preprocessor, X_train, X_test, y_train, y_test, model, name="model", use_smote=False):
+    if use_smote:
+        pipe = ImbPipeline([
+            ("preproc", preprocessor),
+            ("smote", SMOTE(random_state=42)),
+            ("clf", model)
+        ])
+    else:
+        pipe = Pipeline([
+            ("preproc", preprocessor),
+            ("clf", model)
+        ])
+
     pipe.fit(X_train, y_train)
 
     y_pred = pipe.predict(X_test)
