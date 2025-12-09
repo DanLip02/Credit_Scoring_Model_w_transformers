@@ -6,7 +6,7 @@ import torch.optim as optim
 import numpy as np
 from sklearn.preprocessing import StandardScaler, OrdinalEncoder
 from sklearn.model_selection import train_test_split
-from tab_transformers import TabTransformerModel
+from .tab_transformers import TabTransformerModel
 # from config import TT
 import os
 
@@ -67,6 +67,7 @@ def eval_loop(model, loader, device):
     return ys, preds
 
 def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, cardinalities, device="cpu"):
+    np.random.seed(42)
     model = TabTransformerModel(cardinalities=cardinalities, n_num=num_train.shape[1] if num_train is not None else 0,
                                 emb_dim=TT["embed_dim"], nhead=TT["n_heads"], n_layers=TT["n_layers"], mlp_dim=TT["mlp_dim"], dropout=TT["dropout"])
     model.to(device)
@@ -87,5 +88,14 @@ def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, c
         print(f"Epoch {epoch+1}/{TT['epochs']} train_loss={train_loss:.4f} val_auc={auc:.4f}")
         if auc > best_auc:
             best_auc = auc
-            torch.save(model.state_dict(), os.path.join("..","models","transformers","tabtransformer_best.pth"))
+            # torch.save(model.state_dict(), os.path.join("../..", "models", "transformers", "tabtransformer_best.pth"))
+            BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+            save_dir = os.path.join(BASE_DIR, "..", "..", "models", "transformers")
+            os.makedirs(save_dir, exist_ok=True)
+
+            save_path = os.path.join(save_dir, "tabtransformer_best.pth")
+
+            torch.save(model.state_dict(), save_path)
+            print(f"Model saved to {save_path}")
     return model
