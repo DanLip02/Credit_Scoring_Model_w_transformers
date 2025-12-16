@@ -1,4 +1,4 @@
 # baselines/__init__.py
-from ..data_explorer.data_explorer import get_preprocessor
+from .baselines import train_ensemble_model
 
-__all__ = ["get_preprocessor"]
+__all__ = ["train_ensemble_model"]
