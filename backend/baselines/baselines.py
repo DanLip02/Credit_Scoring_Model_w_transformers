@@ -22,8 +22,7 @@ from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.impute import SimpleImputer
 import pandas as pd
-import sys
-from pathlib import Path
+from backend.metrics import load_metric
 
 # from metrics import load_metric
 
@@ -90,9 +89,8 @@ def build_ensemble(cfg, estimators):
         raise ValueError(f"Unsupported ensemble_type: {ensemble_type}")
 
 
-def train_ensemble_model(type_data: str,
+def train_ensemble_model(
                          type_class: str,
-                         split_type: str="base",
                          data: dict=None,
                          model: dict=None,
                          metrics: dict=None,
@@ -109,6 +107,7 @@ def train_ensemble_model(type_data: str,
             with open(cfg_path) as f:
                 cfg = yaml.safe_load(f)
 
+        print(kwargs)
         if all(k in kwargs for k in ("X_train", "y_train", "X_test", "y_test")):
             X_train = kwargs["X_train"]
             y_train = kwargs["y_train"]
@@ -127,12 +126,15 @@ def train_ensemble_model(type_data: str,
         # csg_split = load_config.load_split_config(split_type=split_type)
         # X_train, X_test, y_train, y_test = split_data(target_col=y, df=X, cfg_split=csg_split, method=split_type)
 
-        num_features = kwargs.get("num_features", None)
-        cat_features = kwargs.get("cat_features", None)
+        # num_features = kwargs.get("num_features", None)
+        # cat_features = kwargs.get("cat_features", None)
 
-        if num_features is not None and cat_features is not None:
-            X_train = pd.DataFrame(X_train, columns=num_features + cat_features)
-            X_test = pd.DataFrame(X_test, columns=num_features + cat_features)
+        # if num_features is not None and cat_features is not None:
+        #     X_train = pd.DataFrame(X_train, columns=num_features + cat_features)
+        #     X_test = pd.DataFrame(X_test, columns=num_features + cat_features)
+
+        X_train = pd.DataFrame(X_train)
+        X_test = pd.DataFrame(X_test)
 
         dupes = X_train.columns[X_train.columns.duplicated()]
 
@@ -175,7 +177,7 @@ def train_ensemble_model(type_data: str,
                     )
 
             estimators.append((est["name"], model_obj))
-        
+
         preprocessor = get_preprocessor(X_train)
         ensemble = build_ensemble(cfg, estimators)
 
@@ -190,7 +192,7 @@ def train_ensemble_model(type_data: str,
             # mlflow.set_experiment(experimentid="0")
             mlflow.autolog()
             # mlflow.set_experiment(cfg["model_name"])
-
+            print(X_train, y_train)
             model_pipeline.fit(X_train, y_train)
             y_pred = model_pipeline.predict(X_test)
 
