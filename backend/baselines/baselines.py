@@ -85,6 +85,11 @@ def build_ensemble(cfg, estimators):
 
         base_model = estimators[0][1]
         return base_model
+
+    elif ensemble_type == 'transformers':
+
+        base_model = estimators[0][1]
+        return base_model
     else:
         raise ValueError(f"Unsupported ensemble_type: {ensemble_type}")
 

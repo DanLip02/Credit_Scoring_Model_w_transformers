@@ -1,0 +1,65 @@
+run:
+  type_data: test
+  type_class: base
+  split_type: base #todo adapt to train
+  split_config:
+    params:
+      test_size: 0.2
+      random_state: 42
+      stratify: false
+
+  type_class_model: classification
+
+full_data:
+  data:
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\german\german_credit_risk.csv     # path to xlsx
+    sheet_name: "sheet_name"                 # sheet_name
+    target: "target"             # target
+#    skiprows: 7
+    dropna: False                       # drop rows with NaN
+#    skip: "skip"
+#    date_column: "report_date"
+#    filter_columns:
+#      - "report_date"
+#      - "global_id"
+
+    mapper:
+      1: 0
+      2: 1
+
+
+  features:
+    numeric:
+
+
+    categorical:
+
+
+model:
+  model_name: credit_german_risks
+  framework: sklearn
+  ensemble:
+    type: base         # possible right now: voting | stacking | bagging | bases
+    voting: soft          # for VotingClassifier
+    final_estimator: null # for StackingClassifier, example LogisticRegression
+    estimators:
+      - name: rf
+        type: RandomForestClassifier
+        params:
+          n_estimators: 200
+          max_depth: 5
+
+metrics:
+#    custom:
+#          ar:
+#            use_transform: direct
+#            min_benchmark: 1
+#            max_benchmark: 7
+
+    base:
+      - auc
+      - f1
+      - accuracy
+      - mse
+      - rmse
+      - r2
