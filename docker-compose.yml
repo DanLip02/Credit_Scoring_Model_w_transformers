@@ -1,0 +1,45 @@
+services:
+  backend_streamlit:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+
+    image: "backend_streamlit"
+    container_name: backend_streamlit
+    ports:
+      - "${EXT_PORT_WEB}:${INT_PORT_WEB}"
+    volumes:
+      - ./backend:/backend
+    restart: on-failure
+#    environment:
+#      MLFLOW_TRACKING_URI: "postgresql+psycopg2://${user_name}:${user_pass}@${host}:${port}/${data_base}?options=-csearch_path=${schema}"
+    command: ["run", "/backend/main.py", "--server.maxMessageSize", "2048", "--server.maxUploadSize", "2048", "--server.port", "$INT_PORT_WEB"]
+
+  mlflow_ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.mlflow
+    container_name: mlflow_ui
+    image: "mlflow_ui"
+    ports:
+      - "${EXT_PORT_FLOW}:${INT_PORT_FLOW}"
+
+    environment:
+      # Tracking Store — database
+      MLFLOW_TRACKING_URI: "postgresql+psycopg2://${user_name}:${user_pass}@${host}:${port}/${data_base}?options=-csearch_path=${schema}"
+
+      # Artifact Store — catalog with models
+      MLFLOW_ARTIFACT_ROOT: "file:///mlruns"
+
+    volumes:
+      # local folder backend/mlruns ←→ /mlruns in container
+      - ./backend/mlruns:/mlruns
+
+    restart: on-failure
+
+    command: [
+      "--host", "0.0.0.0",
+      "--port", "${INT_PORT_FLOW}",
+      "--backend-store-uri", "postgresql+psycopg2://${user_name}:${user_pass}@${host}:${port}/${data_base}?options=-csearch_path=${schema}",
+      "--default-artifact-root", "file:///mlruns"
+    ]
