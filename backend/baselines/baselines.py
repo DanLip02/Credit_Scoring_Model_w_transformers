@@ -43,6 +43,8 @@ Voting Classifier: Boosting + Bagging + Stacking + others
 
 Logisticregression / LinearRegression / RidgeRegression / LasssoRegression and others
 
+Transformers
+
 """
 
 def load_model_from_cfg(model_type, params):
@@ -162,84 +164,167 @@ def train_ensemble_model(
         #         ("cat", categorical_transformer, cat_features)
         #     ]
         # )
-        estimators = []
-        for est in cfg["ensemble"]["estimators"]:
-            model_obj = load_model_from_cfg(est["type"], est["params"])
 
-            if type_class_model == "classification":
-                if not hasattr(model_obj, "predict_proba") and not hasattr(model_obj, "decision_function"):
-                    raise ValueError(
-                        f"Model {est['type']} is not classifier, "
-                        f"but task = classification."
+        ensemble_type = cfg.get("ensemble", {}).get("type", "").lower()
+
+        if ensemble_type == 'transformers':
+            print("Training TabTransformer...")
+
+            # Создаем модель TabTransformer
+            from .tabtransformer_direct import DirectTabTransformer
+
+            # Получаем конфигурацию
+            tt_params = cfg["ensemble"]["estimators"][0]["params"]
+
+            # Создаем модель
+            tabtransformer = DirectTabTransformer(**tt_params)
+
+            # Можно передать X_val/y_val если есть (например, для ранней остановки)
+            X_val = kwargs.get("X_val", None)
+            y_val = kwargs.get("y_val", None)
+
+            # Обучение модели
+            tabtransformer.fit(
+                X_train=X_train,
+                y_train=y_train,
+                X_val=X_val,
+                y_val=y_val
+            )
+
+            # Предсказания на тесте
+            y_pred = tabtransformer.predict(X_test)
+            y_prob = tabtransformer.predict_proba(X_test)[:, 1]
+
+            with mlflow.start_run(run_name="tabtransformer"):
+                mlflow.autolog()
+
+                # Логируем параметры
+                mlflow.log_params({
+                    "model_type": "TabTransformer",
+                    **tt_params,
+                    "cat_features_count": len(tabtransformer.cat_features_) if tabtransformer.cat_features_ else 0,
+                    "num_features_count": len(tabtransformer.num_features_) if tabtransformer.num_features_ else 0
+                })
+
+                # Вычисление метрик
+                from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
+                metrics_dict = {
+                    "test_auc": roc_auc_score(y_test, y_prob),
+                    "test_accuracy": accuracy_score(y_test, y_pred),
+                    "test_f1": f1_score(y_test, y_pred)
+                }
+
+                # Логируем метрики
+                for name, value in metrics_dict.items():
+                    mlflow.log_metric(name, value)
+                    print(f"{name}: {value:.4f}")
+
+                # Сохраняем модель PyTorch
+                mlflow.pytorch.log_model(
+                    tabtransformer.model_,
+                    "tabtransformer_model",
+                    registered_model_name="TabTransformer"
+                )
+
+                # Сохраняем препроцессоры как артефакты
+                with tempfile.TemporaryDirectory() as tmpdir:
+                    preprocessors_path = f"{tmpdir}/preprocessors.pkl"
+                    tabtransformer.save_preprocessors(preprocessors_path)
+                    mlflow.log_artifact(preprocessors_path, "preprocessors")
+
+                # Если есть пользовательские метрики, логируем их
+                if metrics:
+                    custom_metrics = load_metric(
+                        metrics=metrics,
+                        y_test=y_test,
+                        y_pred=y_pred,
+                        y_prob=y_prob
                     )
+                    for key, value in custom_metrics.items():
+                        if value is not None:
+                            mlflow.log_metric(key, value)
 
-            if type_class_model == "regression":
-                from sklearn.base import RegressorMixin
-                if not isinstance(model, RegressorMixin):
-                    raise ValueError(
-                        f"Model {est['type']} not is regressor, "
-                        f"bu task = regression."
-                    )
+                print(f"TabTransformer training completed. AUC: {metrics_dict['test_auc']:.4f}")
+                return "tabtransformer_model_run_id"
+        else:
+            estimators = []
+            for est in cfg["ensemble"]["estimators"]:
+                model_obj = load_model_from_cfg(est["type"], est["params"])
 
-            estimators.append((est["name"], model_obj))
+                if type_class_model == "classification":
+                    if not hasattr(model_obj, "predict_proba") and not hasattr(model_obj, "decision_function"):
+                        raise ValueError(
+                            f"Model {est['type']} is not classifier, "
+                            f"but task = classification."
+                        )
 
-        preprocessor = get_preprocessor(X_train)
-        ensemble = build_ensemble(cfg, estimators)
+                if type_class_model == "regression":
+                    from sklearn.base import RegressorMixin
+                    if not isinstance(model, RegressorMixin):
+                        raise ValueError(
+                            f"Model {est['type']} not is regressor, "
+                            f"bu task = regression."
+                        )
 
-        model_pipeline = Pipeline(steps=[
-            ("preprocessor", preprocessor),
-            ("ensemble", ensemble)
-        ])
+                estimators.append((est["name"], model_obj))
 
-        config_model = cfg["ensemble"]
-        stop = 0
-        with mlflow.start_run():
-            # mlflow.set_experiment(experimentid="0")
-            mlflow.autolog()
-            # mlflow.set_experiment(cfg["model_name"])
-            print(X_train, y_train)
-            model_pipeline.fit(X_train, y_train)
-            y_pred = model_pipeline.predict(X_test)
+            preprocessor = get_preprocessor(X_train)
+            ensemble = build_ensemble(cfg, estimators)
 
-            y_prob = getattr(model_pipeline, "predict_proba", lambda X: None)(X_test)
-            y_prob = y_prob[:, 1] if y_prob is not None else None
+            model_pipeline = Pipeline(steps=[
+                ("preprocessor", preprocessor),
+                ("ensemble", ensemble)
+            ])
 
-            print(load_metric(metrics=metrics, y_test=y_test, y_pred=y_pred, y_prob=y_prob))
+            config_model = cfg["ensemble"]
+            stop = 0
+            with mlflow.start_run():
+                # mlflow.set_experiment(experimentid="0")
+                mlflow.autolog()
+                # mlflow.set_experiment(cfg["model_name"])
+                print(X_train, y_train)
+                model_pipeline.fit(X_train, y_train)
+                y_pred = model_pipeline.predict(X_test)
 
-            mlflow.log_param("model_name", cfg["model_name"])
-            mlflow.log_param("ensemble_type", config_model["type"])
-            input_example = X_test
-            signature = infer_signature(X_test, y_test)
+                y_prob = getattr(model_pipeline, "predict_proba", lambda X: None)(X_test)
+                y_prob = y_prob[:, 1] if y_prob is not None else None
 
-            model_info = mlflow.sklearn.log_model(model_pipeline,
-                                     name=cfg["model_name"],
-                                     input_example=input_example,
-                                     signature=signature
-                                     )
+                print(load_metric(metrics=metrics, y_test=y_test, y_pred=y_pred, y_prob=y_prob))
+
+                mlflow.log_param("model_name", cfg["model_name"])
+                mlflow.log_param("ensemble_type", config_model["type"])
+                input_example = X_test
+                signature = infer_signature(X_test, y_test)
+
+                model_info = mlflow.sklearn.log_model(model_pipeline,
+                                         name=cfg["model_name"],
+                                         input_example=input_example,
+                                         signature=signature
+                                         )
+                logged_model = mlflow.get_logged_model(model_info.model_id)
+
+                for est in config_model["estimators"]:
+                    mlflow.log_params({f"{est['name']}_{k}": v for k, v in est["params"].items()},)
+                print(logged_model.model_id, logged_model.params)
+
+                if metrics:
+                    for key, value in load_metric(metrics=metrics, y_test=y_test, y_pred=y_pred, y_prob=y_prob).items():
+                        if value is not None:
+                            mlflow.log_metric(key, value)
+                            print(f"Metric {key} = {value} was logged")
+                else:
+                    acc = accuracy_score(y_test, y_pred)
+                    f1 = f1_score(y_test, y_pred, average="macro")
+                    auc = roc_auc_score(y_test, y_prob) if y_prob is not None else None
+                    mlflow.log_metric("accuracy", acc)
+                    mlflow.log_metric("f1", f1)
+                    if auc:
+                        mlflow.log_metric("roc_auc", auc)
+
             logged_model = mlflow.get_logged_model(model_info.model_id)
+            print(logged_model.model_id, logged_model.metrics)
 
-            for est in config_model["estimators"]:
-                mlflow.log_params({f"{est['name']}_{k}": v for k, v in est["params"].items()},)
-            print(logged_model.model_id, logged_model.params)
-
-            if metrics:
-                for key, value in load_metric(metrics=metrics, y_test=y_test, y_pred=y_pred, y_prob=y_prob).items():
-                    if value is not None:
-                        mlflow.log_metric(key, value)
-                        print(f"Metric {key} = {value} was logged")
-            else:
-                acc = accuracy_score(y_test, y_pred)
-                f1 = f1_score(y_test, y_pred, average="macro")
-                auc = roc_auc_score(y_test, y_prob) if y_prob is not None else None
-                mlflow.log_metric("accuracy", acc)
-                mlflow.log_metric("f1", f1)
-                if auc:
-                    mlflow.log_metric("roc_auc", auc)
-
-        logged_model = mlflow.get_logged_model(model_info.model_id)
-        print(logged_model.model_id, logged_model.metrics)
-
-        return logged_model.model_id
+            return logged_model.model_id
 
     except Exception as e:
         logging.exception(f"Error: {e}")

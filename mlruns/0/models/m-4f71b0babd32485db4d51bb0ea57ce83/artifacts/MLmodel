@@ -1,0 +1,45 @@
+artifact_path: file:C:/Users/Danch/PycharmProjects/Credit_Scoring_Model_w_transformers/mlruns/0/models/m-4f71b0babd32485db4d51bb0ea57ce83/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.8
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.2
+is_signature_from_type_hint: false
+mlflow_version: 3.7.0
+model_id: m-4f71b0babd32485db4d51bb0ea57ce83
+model_size_bytes: 555451
+model_uuid: m-4f71b0babd32485db4d51bb0ea57ce83
+prompts: null
+run_id: 8c6e8b43c1b74589ae807b5fea8bde93
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: values
+  serving_input_path: serving_input_example.json
+  type: dataframe
+signature:
+  inputs: '[{"type": "long", "name": 0, "required": true}, {"type": "string", "name":
+    1, "required": true}, {"type": "long", "name": 2, "required": true}, {"type":
+    "string", "name": 3, "required": true}, {"type": "string", "name": 4, "required":
+    true}, {"type": "long", "name": 5, "required": true}, {"type": "string", "name":
+    6, "required": true}, {"type": "string", "name": 7, "required": true}, {"type":
+    "long", "name": 8, "required": true}, {"type": "string", "name": 9, "required":
+    true}, {"type": "string", "name": 10, "required": true}, {"type": "long", "name":
+    11, "required": true}, {"type": "string", "name": 12, "required": true}, {"type":
+    "long", "name": 13, "required": true}, {"type": "string", "name": 14, "required":
+    true}, {"type": "string", "name": 15, "required": true}, {"type": "long", "name":
+    16, "required": true}, {"type": "string", "name": 17, "required": true}, {"type":
+    "long", "name": 18, "required": true}, {"type": "string", "name": 19, "required":
+    true}, {"type": "string", "name": 20, "required": true}]'
+  outputs: '[{"type": "long", "name": "target", "required": true}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2025-12-17 19:11:38.843448'

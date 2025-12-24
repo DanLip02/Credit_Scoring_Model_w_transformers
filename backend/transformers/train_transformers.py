@@ -10,16 +10,16 @@ from .tab_transformers import TabTransformerModel
 # from config import TT
 import os
 
-TT = {
-    "embed_dim": 32,
-    "n_heads": 4,
-    "n_layers": 2,
-    "mlp_dim": 64,
-    "dropout": 0.1,
-    "lr": 1e-3,
-    "batch_size": 128,
-    "epochs": 20,
-}
+# TT = {
+#     "embed_dim": 32,
+#     "n_heads": 4,
+#     "n_layers": 2,
+#     "mlp_dim": 64,
+#     "dropout": 0.1,
+#     "lr": 1e-3,
+#     "batch_size": 128,
+#     "epochs": 20,
+# }
 
 class TabDataset(Dataset):
     def __init__(self, cat, num, y=None):
@@ -66,7 +66,7 @@ def eval_loop(model, loader, device):
     preds = np.concatenate(preds)
     return ys, preds
 
-def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, cardinalities, device="cpu"):
+def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, cardinalities, TT, device="cpu"):
     np.random.seed(42)
     model = TabTransformerModel(cardinalities=cardinalities, n_num=num_train.shape[1] if num_train is not None else 0,
                                 emb_dim=TT["embed_dim"], nhead=TT["n_heads"], n_layers=TT["n_layers"], mlp_dim=TT["mlp_dim"], dropout=TT["dropout"])

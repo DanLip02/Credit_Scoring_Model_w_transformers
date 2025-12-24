@@ -8,7 +8,7 @@ run:
       random_state: 42
       stratify: false
 
-  type_class_model: classification
+  type_class_model: transformers
 
 full_data:
   data:
@@ -43,11 +43,17 @@ model:
     voting: soft          # for VotingClassifier
     final_estimator: null # for StackingClassifier, example LogisticRegression
     estimators:
-      - name: rf
-        type: RandomForestClassifier
+      - name: transformer_tab
+        type: Transformers
         params:
-          n_estimators: 200
-          max_depth: 5
+          embed_dim: 32,
+          n_heads: 4,
+          n_layers: 2,
+          mlp_dim: 64,
+          dropout: 0.1,
+          lr: 1e-3,
+          batch_size: 128,
+          epochs: 20,
 
 metrics:
 #    custom:
