@@ -1,17 +1,9 @@
-from data_explorer.data_explorer import *
-from transformers import fit_tabtransformer
+# from data_explorer.data_explorer import *
+from .train_transformers import fit_tabtransformer
 import torch
 import os
 
-
-
-def run_main():
-    df = load_data(
-        r"C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\backend\datasets\german_credit_risk\german_credit_risk.csv")
-    df = add_features(df)
-
-    X_train, X_test, y_train, y_test = split_data(df)
-    preprocessor = get_preprocessor(X_train)
+def run_transformers(X_train, y_train, X_test, y_test, config_param):
     cat_cols = X_train.select_dtypes(include=["object"]).columns.tolist()
     num_cols = X_train.select_dtypes(include=["int64", "float64"]).columns.tolist()
 
@@ -38,13 +30,15 @@ def run_main():
     print(f"Using device: {device}")
 
     # ====== create folders ======
-    os.makedirs(r"C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers", exist_ok=True)
-
+    try:
+        os.makedirs(r"models\transformers", exist_ok=True)
+    except:
+        print("can not be created dir")
     # ====== fit TabTransformer ======
     model = fit_tabtransformer(
         cat_train, num_train, y_train.values,
         cat_val, num_val, y_test.values,
-        cardinalities,
+        cardinalities, config_param,
         device=device
     )
 
