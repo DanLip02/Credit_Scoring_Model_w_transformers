@@ -41,9 +41,18 @@ def run_main(run_cfg: dict):
     # from .transformers import fit_tabtransformer
     from .baselines import train_ensemble_model
     # import torch
-    # import os
-
+    import os
+    import mlflow
     try:
+
+        NAME = os.getenv("user_name")
+        PASS = os.getenv("user_pass")
+        HOST = os.getenv("host", "localhost")
+        PORT = os.getenv("port", 5432)
+        DB = os.getenv("data_base", "postgres")
+        SCHEMA = os.getenv("schema", "public")
+
+        print(NAME, PASS, HOST, PORT, DB, SCHEMA)
         TYPE_DATA = run_cfg["run"]["type_data"]
         SPLIT_TYPE = run_cfg["run"]["split_type"]
         SPLIT_CONFIG = run_cfg["run"]["split_config"]
@@ -56,6 +65,9 @@ def run_main(run_cfg: dict):
         # todo check name_experiment work in process
         name_experiment = model_cfg.get("model_name", None) if model_cfg is not None else None
         type_class_model = run_cfg.get("type_class_model", None)
+
+        mlflow.set_tracking_uri(
+            f"postgresql+psycopg2://{NAME}:{PASS}@{HOST}:{PORT}/{DB}?options=-csearch_path={SCHEMA}")
 
         X, y, num_features, cat_features = apply_data(type_data=TYPE_DATA,
                                                       data=full_data_cfg) if full_data_cfg is not None else apply_data(
