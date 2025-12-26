@@ -43,3 +43,22 @@ services:
       "--backend-store-uri", "postgresql+psycopg2://${user_name}:${user_pass}@${host}:${port}/${data_base}?options=-csearch_path=${schema}",
       "--default-artifact-root", "file:///mlruns"
     ]
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api  # по умолчанию, можно опустить
+    image: "api"
+#    dns:
+#      - 1.1.1.1
+#      - 8.8.8.8
+    container_name: api_image
+    restart: on-failure
+    volumes:
+      - ./backend:/backend
+    ports:
+      - "${EXT_PORT_API}:${INT_PORT_API}"
+    command: [ "backend.main:app", "--port", "$INT_PORT_API", "--host", "$host_server" ]
+    env_file:
+      - .env
+    # stdin_open: true  # docker run -i
+    # tty: true         # docker run -t
