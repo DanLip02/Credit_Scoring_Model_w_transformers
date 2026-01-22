@@ -37,12 +37,12 @@ async def run_learn(file: UploadFile = File(...)):
         raise
 
 def run_main(run_cfg: dict):
-    from .data_explorer.data_explorer import get_preprocessor, split_data, apply_data
-    # from .transformers import fit_tabtransformer
-    from .baselines import train_ensemble_model
-    # import torch
+    from backend.data_explorer.data_explorer import get_preprocessor, split_data, apply_data
+    # from .transformers_ import fit_tabtransformer
+    from backend.baselines.baselines import train_ensemble_model
     import os
     import mlflow
+    print("start calculation...")
     try:
 
         NAME = os.getenv("user_name")
@@ -78,6 +78,11 @@ def run_main(run_cfg: dict):
         # preprocessor = get_preprocessor(X_train)
 
         data = {"X_train": X_train, "X_test": X_test, "y_train": y_train, "y_test": y_test}
+
+        #todo carefully check each dtype from each part of learnin model
+        print("Prerun checking dtypes of columns from each part of learning...")
+        print(X_train.dtypes, X_test.dtypes, y_train.dtypes, y_test.dtypes)
+
         if full_data_cfg is not None and model_cfg is not None:
             train_ensemble_model(type_class=TYPE_CLASS, data=data, model=model_cfg, metrics=metrics,
                                  type_class_model=type_class_model)
@@ -86,11 +91,12 @@ def run_main(run_cfg: dict):
 
         return {"status": "success"}
 
-    except:
+    except Exception as e:
+        print(e)
         return {"status": "error"}
 
 if __name__ == '__main__':
-    uvicorn.run("app:main", host="127.0.0.1", reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", reload=True)
 
     # df = load_data("/Users/danilalipatov/Credit_Scoring_Model_w_transformers/backend/datasets/german_credit_risk/german_credit_risk.csv")
 

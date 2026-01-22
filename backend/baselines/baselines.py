@@ -88,7 +88,7 @@ def build_ensemble(cfg, estimators):
         base_model = estimators[0][1]
         return base_model
 
-    elif ensemble_type == 'transformers':
+    elif ensemble_type == 'transformers_':
 
         base_model = estimators[0][1]
         return base_model
@@ -159,29 +159,30 @@ def train_ensemble_model(
         # ])
 
         # preprocessor = ColumnTransformer(
-        #     transformers=[
+        #     transformers_=[
         #         ("num", numeric_transformer, num_features),
         #         ("cat", categorical_transformer, cat_features)
         #     ]
         # )
 
         ensemble_type = cfg.get("ensemble", {}).get("type", "").lower()
-
+        print(ensemble_type)
         if ensemble_type == 'transformers':
             print("Training TabTransformer...")
 
             # Создаем модель TabTransformer
-            from .tabtransformer_direct import DirectTabTransformer
+            from backend.transformers_.tabtransformer_direct import DirectTabTransformer
+            import tempfile
 
             # Получаем конфигурацию
             tt_params = cfg["ensemble"]["estimators"][0]["params"]
 
-            # Создаем модель
-            tabtransformer = DirectTabTransformer(**tt_params)
-
             # Можно передать X_val/y_val если есть (например, для ранней остановки)
             X_val = kwargs.get("X_val", None)
             y_val = kwargs.get("y_val", None)
+
+            # Создаем модель
+            tabtransformer = DirectTabTransformer(**tt_params)
 
             # Обучение модели
             tabtransformer.fit(
@@ -206,8 +207,6 @@ def train_ensemble_model(
                     "num_features_count": len(tabtransformer.num_features_) if tabtransformer.num_features_ else 0
                 })
 
-                # Вычисление метрик
-                from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
                 metrics_dict = {
                     "test_auc": roc_auc_score(y_test, y_prob),
                     "test_accuracy": accuracy_score(y_test, y_pred),

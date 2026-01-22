@@ -39,7 +39,7 @@ model:
   model_name: credit_german_risks
   framework: sklearn
   ensemble:
-    type: base         # possible right now: voting | stacking | bagging | bases
+    type: transformers         # possible right now: voting | stacking | bagging | bases
     voting: soft          # for VotingClassifier
     final_estimator: null # for StackingClassifier, example LogisticRegression
     estimators:
@@ -56,11 +56,6 @@ model:
           epochs: 20,
 
 metrics:
-#    custom:
-#          ar:
-#            use_transform: direct
-#            min_benchmark: 1
-#            max_benchmark: 7
 
     base:
       - auc
