@@ -23,6 +23,9 @@ class DirectTabTransformer:
     def prepare_data(self, X, y=None, X_val=None, y_val=None, fit=False):
         """preparing data for TabTransformer"""
 
+        print(X.dtypes)
+        print(self.num_features_)
+
         # Define features if not existed
         if self.cat_features_ is None:
             self.cat_features_ = X.select_dtypes(include=["object", "category"]).columns.tolist()
@@ -69,7 +72,7 @@ class DirectTabTransformer:
         cat_train, num_train, cat_val, num_val = self.prepare_data(
             X_train, y_train, X_val, y_val, fit=True
         )
-
+        print(cat_train, num_train, cat_val, num_val)
         # using existed X_val/y_val or create from X_train/y_train
         if X_val is None or y_val is None:
             from sklearn.model_selection import train_test_split

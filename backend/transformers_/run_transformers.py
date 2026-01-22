@@ -42,4 +42,4 @@ def run_transformers(X_train, y_train, X_test, y_test, config_param):
         device=device
     )
 
-    print("Training finished. Best model saved to models/transformers/tabtransformer_best.pth")
+    print("Training finished. Best model saved to models/transformers_/tabtransformer_best.pth")
