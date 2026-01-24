@@ -15,23 +15,23 @@ class DirectTabTransformer:
         self.model_ = None
         self.encoder_ = None
         self.scaler_ = None
-        self.cat_features_ = None
-        self.num_features_ = None
+        self.cat_features_ = params.get("cat_features")
+        self.num_features_ = params.get("num_features")
         self.cardinalities_ = None
         self.device_ = params.get("device", "cuda" if torch.cuda.is_available() else "cpu")
 
     def prepare_data(self, X, y=None, X_val=None, y_val=None, fit=False):
         """preparing data for TabTransformer"""
 
-        print(X.dtypes)
-        print(self.num_features_)
 
         # Define features if not existed
         if self.cat_features_ is None:
-            self.cat_features_ = X.select_dtypes(include=["object", "category"]).columns.tolist()
+            self.cat_features_ = X.select_dtypes(include=["object"]).columns
         if self.num_features_ is None:
-            self.num_features_ = X.select_dtypes(include=["int64", "float64"]).columns.tolist()
+            self.num_features_ = X.select_dtypes(include=["int64", "float64"]).columns
 
+        # print(self.num_features_)
+        # print(self.cat_features_)
         # categorial features
         if fit or self.encoder_ is None:
             self.encoder_ = OrdinalEncoder()
@@ -62,6 +62,7 @@ class DirectTabTransformer:
             if self.scaler_ is not None and len(self.num_features_) > 0:
                 num_val_data = self.scaler_.transform(X_val[self.num_features_])
 
+        print("prepare for tabtransformers: ", cat_data, num_data, cat_val_data, num_val_data)
         return cat_data, num_data, cat_val_data, num_val_data
 
     def fit(self, X_train, y_train, X_val=None, y_val=None):
@@ -72,7 +73,6 @@ class DirectTabTransformer:
         cat_train, num_train, cat_val, num_val = self.prepare_data(
             X_train, y_train, X_val, y_val, fit=True
         )
-        print(cat_train, num_train, cat_val, num_val)
         # using existed X_val/y_val or create from X_train/y_train
         if X_val is None or y_val is None:
             from sklearn.model_selection import train_test_split

@@ -42,6 +42,7 @@ def run_main(run_cfg: dict):
     from backend.baselines.baselines import train_ensemble_model
     import os
     import mlflow
+    import pandas as pd
     print("start calculation...")
     try:
 
@@ -69,19 +70,22 @@ def run_main(run_cfg: dict):
         mlflow.set_tracking_uri(
             f"postgresql+psycopg2://{NAME}:{PASS}@{HOST}:{PORT}/{DB}?options=-csearch_path={SCHEMA}")
 
-        X, y, num_features, cat_features = apply_data(type_data=TYPE_DATA,
-                                                      data=full_data_cfg) if full_data_cfg is not None else apply_data(
-            type_data=TYPE_DATA)
+        X, y, num_features, cat_features = apply_data(type_data=TYPE_DATA,data=full_data_cfg) if full_data_cfg is not None else apply_data(type_data=TYPE_DATA)
         # df = add_features(df)
+        print("trouble before split")
+        assert isinstance(X, pd.DataFrame), "X must be DataFrame"
 
         X_train, X_test, y_train, y_test = split_data(target_col=y, df=X, cfg_split=SPLIT_CONFIG, method=SPLIT_TYPE)
         # preprocessor = get_preprocessor(X_train)
 
-        data = {"X_train": X_train, "X_test": X_test, "y_train": y_train, "y_test": y_test}
+        #todo asserts to check valid of dataframes
+        # assert isinstance(X_train, pd.DataFrame), "X_train must be DataFrame"
+        # assert isinstance(X_test, pd.DataFrame), "X_test must be DataFrame"
+
+        data = {"X_train": X_train, "X_test": X_test, "y_train": y_train, "y_test": y_test, "cat_features": cat_features, "num_features": num_features}
 
         #todo carefully check each dtype from each part of learnin model
         print("Prerun checking dtypes of columns from each part of learning...")
-        print(X_train.dtypes, X_test.dtypes, y_train.dtypes, y_test.dtypes)
 
         if full_data_cfg is not None and model_cfg is not None:
             train_ensemble_model(type_class=TYPE_CLASS, data=data, model=model_cfg, metrics=metrics,

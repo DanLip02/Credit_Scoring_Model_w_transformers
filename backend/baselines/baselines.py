@@ -115,17 +115,21 @@ def train_ensemble_model(
                 cfg = yaml.safe_load(f)
 
         print(kwargs)
-        if all(k in kwargs for k in ("X_train", "y_train", "X_test", "y_test")):
+        if all(k in kwargs for k in ("X_train", "y_train", "X_test", "y_test", "cat_features", "num_features")):
             X_train = kwargs["X_train"]
             y_train = kwargs["y_train"]
             X_test = kwargs["X_test"]
             y_test = kwargs["y_test"]
+            cat_features = kwargs["cat_features"]
+            num_features = kwargs["num_features"]
             # Иначе берем данные из словаря data
         elif data is not None:
             X_train = data.get("X_train")
             y_train = data.get("y_train")
             X_test = data.get("X_test")
             y_test = data.get("y_test")
+            num_features = data.get("num_features")
+            cat_features = data.get("cat_features")
         else:
             raise ValueError("Not given data for learning.")
 
@@ -141,6 +145,7 @@ def train_ensemble_model(
         #     X_test = pd.DataFrame(X_test, columns=num_features + cat_features)
 
         X_train = pd.DataFrame(X_train)
+        print(X_train.dtypes)
         X_test = pd.DataFrame(X_test)
 
         dupes = X_train.columns[X_train.columns.duplicated()]
@@ -182,7 +187,9 @@ def train_ensemble_model(
             y_val = kwargs.get("y_val", None)
 
             # Создаем модель
-            tabtransformer = DirectTabTransformer(**tt_params)
+            tabtransformer = DirectTabTransformer(**tt_params,
+                                                  cat_features=cat_features,
+                                                  num_features=num_features)
 
             # Обучение модели
             tabtransformer.fit(
