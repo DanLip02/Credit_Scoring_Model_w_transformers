@@ -1,0 +1,48 @@
+artifact_path: file:C:/Users/Danch/PycharmProjects/Credit_Scoring_Model_w_transformers/mlruns/0/models/m-aae9cb6986454641bc368c019056bc4d/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.8
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.2
+is_signature_from_type_hint: false
+mlflow_version: 3.7.0
+model_id: m-aae9cb6986454641bc368c019056bc4d
+model_size_bytes: 568633
+model_uuid: m-aae9cb6986454641bc368c019056bc4d
+prompts: null
+run_id: 7ca3d882070941c9b71914d1ffceda72
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: split
+  serving_input_path: serving_input_example.json
+  type: dataframe
+signature:
+  inputs: '[{"type": "long", "name": "Unnamed: 0", "required": true}, {"type": "string",
+    "name": "status_existing_checking", "required": true}, {"type": "long", "name":
+    "duration_month", "required": true}, {"type": "string", "name": "credit_history",
+    "required": true}, {"type": "string", "name": "purpose", "required": true}, {"type":
+    "long", "name": "credit_amount", "required": true}, {"type": "string", "name":
+    "savings", "required": true}, {"type": "string", "name": "employment", "required":
+    true}, {"type": "long", "name": "installment_rate", "required": true}, {"type":
+    "string", "name": "personal_status_sex", "required": true}, {"type": "string",
+    "name": "other_debtors", "required": true}, {"type": "long", "name": "residence_since",
+    "required": true}, {"type": "string", "name": "property", "required": true}, {"type":
+    "long", "name": "age", "required": true}, {"type": "string", "name": "other_installment_plans",
+    "required": true}, {"type": "string", "name": "housing", "required": true}, {"type":
+    "long", "name": "existing_credits", "required": true}, {"type": "string", "name":
+    "job", "required": true}, {"type": "long", "name": "people_liable", "required":
+    true}, {"type": "string", "name": "telephone", "required": true}, {"type": "string",
+    "name": "foreign_worker", "required": true}]'
+  outputs: '[{"type": "long", "name": "target", "required": true}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-01-24 10:12:28.760300'

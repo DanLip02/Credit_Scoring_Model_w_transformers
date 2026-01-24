@@ -90,9 +90,9 @@ def prepare_features(df: pd.DataFrame, cfg: dict):
     cat_features = X.select_dtypes(include=["object"]).columns
     num_features = X.select_dtypes(include=["int64", "float64"]).columns
 
-    X = X.reset_index(drop=True).values
+    X = X.reset_index(drop=True)
 
-    return X, y, num_features, cat_features
+    return X, y.reset_index(drop=True), num_features, cat_features
 
 def apply_data(type_data: str, data: dict=None):
 
@@ -212,6 +212,9 @@ def split_data(target_col: pd.Series,
             random_state=params.get("random_state", 42),
             stratify=stratify_vals
         )
+        print("trouble after split")
+        assert isinstance(X_train, pd.DataFrame), "X_train must be DataFrame"
+        assert isinstance(X_test, pd.DataFrame), "X_test must be DataFrame"
 
     elif method == "time":
         date_col = params["date_column"]
