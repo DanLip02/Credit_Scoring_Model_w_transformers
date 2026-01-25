@@ -23,24 +23,32 @@ class DirectTabTransformer:
     def prepare_data(self, X, y=None, X_val=None, y_val=None, fit=False):
         """preparing data for TabTransformer"""
 
-
         # Define features if not existed
         if self.cat_features_ is None:
-            self.cat_features_ = X.select_dtypes(include=["object"]).columns
-        if self.num_features_ is None:
-            self.num_features_ = X.select_dtypes(include=["int64", "float64"]).columns
+            self.cat_features_ = list(X.select_dtypes(include=["object", "category"]).columns)
+        else:
+            self.cat_features_ = list(self.cat_features_)
 
-        # print(self.num_features_)
-        # print(self.cat_features_)
-        # categorial features
+        if self.num_features_ is None:
+            self.num_features_ = list(X.select_dtypes(include=["int64", "float64"]).columns)
+        else:
+            self.num_features_ = list(self.num_features_)
+
+        # Cardinalities (number of unique categories + 1 for padding)
+        print("Cat categories in tabtransformer: ", self.cat_features_)
+        if self.cat_features_ and (self.cardinalities_ is None or fit):
+            self.cardinalities_ = [int(X[col].nunique()) + 1 for col in self.cat_features_]
+            print(self.cardinalities_, type(self.cardinalities_))
+
+        # Categorical features
         if fit or self.encoder_ is None:
             self.encoder_ = OrdinalEncoder()
-            cat_data = self.encoder_.fit_transform(X[self.cat_features_].astype(str))
+            cat_data = self.encoder_.fit_transform(X[self.cat_features_].astype(str)) if self.cat_features_ else None
         else:
-            cat_data = self.encoder_.transform(X[self.cat_features_].astype(str))
+            cat_data = self.encoder_.transform(X[self.cat_features_].astype(str)) if self.cat_features_ else None
 
-        # numerical features
-        if len(self.num_features_) > 0:
+        # Numerical features
+        if self.num_features_:
             if fit or self.scaler_ is None:
                 self.scaler_ = StandardScaler()
                 num_data = self.scaler_.fit_transform(X[self.num_features_])
@@ -49,20 +57,14 @@ class DirectTabTransformer:
         else:
             num_data = None
 
-        # cardinalitons (only using with fit)
-        if fit and self.cat_features_:
-            self.cardinalities_ = [int(X[col].nunique()) + 1 for col in self.cat_features_]
-
-        # prepare validation data if not existed
-        cat_val_data = None
-        num_val_data = None
-
+        # Prepare validation data if exists
+        cat_val_data = num_val_data = None
         if X_val is not None:
-            cat_val_data = self.encoder_.transform(X_val[self.cat_features_].astype(str))
-            if self.scaler_ is not None and len(self.num_features_) > 0:
+            cat_val_data = self.encoder_.transform(
+                X_val[self.cat_features_].astype(str)) if self.cat_features_ else None
+            if self.num_features_:
                 num_val_data = self.scaler_.transform(X_val[self.num_features_])
 
-        print("prepare for tabtransformers: ", cat_data, num_data, cat_val_data, num_val_data)
         return cat_data, num_data, cat_val_data, num_val_data
 
     def fit(self, X_train, y_train, X_val=None, y_val=None):
@@ -95,6 +97,8 @@ class DirectTabTransformer:
             "batch_size": self.params.get("batch_size", 128),
             "epochs": self.params.get("epochs", 20)
         }
+
+        print("cardinalities: ", self.cardinalities_)
 
         # Learn model
         self.model_ = fit_tabtransformer(

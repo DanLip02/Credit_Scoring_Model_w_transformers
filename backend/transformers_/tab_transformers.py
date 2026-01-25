@@ -6,6 +6,7 @@ import torch.nn as nn
 class CatEmbeddings(nn.Module):
     def __init__(self, cardinalities, emb_dim):
         super().__init__()
+        # assert isinstance(emb_dim, int), f"emb_dim must be int, got {type(emb_dim)}, {emb_dim}"
         self.embs = nn.ModuleList([nn.Embedding(c+1, emb_dim, padding_idx=0) for c in cardinalities])  # +1 for unknown/pad
 
     def forward(self, x):
@@ -37,8 +38,14 @@ class SimpleTransformer(nn.Module):
         return self.encoder(x)
 
 class TabTransformerModel(nn.Module):
-    def __init__(self, cardinalities, n_num, emb_dim=32, nhead=4, n_layers=2, mlp_dim=64, dropout=0.1):
+    def __init__(self, cardinalities, n_num, emb_dim=34, nhead=4, n_layers=2, mlp_dim=64, dropout=0.1):
         super().__init__()
+
+        emb_dim = int(emb_dim)
+        assert isinstance(emb_dim, int), f"emb_dim must be int, got {type(emb_dim)}, {emb_dim}"
+
+        assert all(isinstance(c, int) for c in cardinalities), f"all cardinalities must be int, got {cardinalities}"
+
         self.cat_emb = CatEmbeddings(cardinalities, emb_dim)
         self.num_proj = NumProj(n_num, emb_dim) if n_num>0 else None
         self.transformer = SimpleTransformer(d_model=emb_dim, nhead=nhead, num_layers=n_layers, dim_feedforward=mlp_dim, dropout=dropout)
