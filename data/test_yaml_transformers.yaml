@@ -46,14 +46,14 @@ model:
       - name: transformer_tab
         type: Transformers
         params:
-          embed_dim: 32,
-          n_heads: 4,
-          n_layers: 2,
-          mlp_dim: 64,
-          dropout: 0.1,
-          lr: 1e-3,
-          batch_size: 128,
-          epochs: 20,
+          embed_dim: 32
+          n_heads: 4
+          n_layers: 2
+          mlp_dim: 64
+          dropout: 0.1
+          lr: 0.0001
+          batch_size: 128
+          epochs: 200
 
 metrics:
 
