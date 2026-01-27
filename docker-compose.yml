@@ -13,7 +13,7 @@ services:
     restart: on-failure
 #    environment:
 #      MLFLOW_TRACKING_URI: "postgresql+psycopg2://${user_name}:${user_pass}@${host}:${port}/${data_base}?options=-csearch_path=${schema}"
-    command: ["run", "/backend/web_ui.py", "--server.maxMessageSize", "2048", "--server.maxUploadSize", "2048", "--server.port", "$INT_PORT_WEB"]
+    command: ["run", "backend.web_ui.py", "--server.maxMessageSize", "2048", "--server.maxUploadSize", "2048", "--server.port", "$INT_PORT_WEB"]
 
   mlflow_ui:
     build:
@@ -57,7 +57,7 @@ services:
       - ./backend:/backend
     ports:
       - "${EXT_PORT_API}:${INT_PORT_API}"
-    command: [ "backend.__main__:app", "--port", "$INT_PORT_API", "--host", "$host_server" ]
+    command: [ "backend.main:app", "--port", "$INT_PORT_API", "--host", "$host_server" ]
     env_file:
       - .env
     # stdin_open: true  # docker run -i
