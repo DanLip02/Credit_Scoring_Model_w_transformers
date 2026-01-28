@@ -13,7 +13,7 @@ services:
     restart: on-failure
 #    environment:
 #      MLFLOW_TRACKING_URI: "postgresql+psycopg2://${user_name}:${user_pass}@${host}:${port}/${data_base}?options=-csearch_path=${schema}"
-    command: ["run", "backend.web_ui.py", "--server.maxMessageSize", "2048", "--server.maxUploadSize", "2048", "--server.port", "$INT_PORT_WEB"]
+    command: ["run", "/backend/web_ui.py", "--server.maxMessageSize", "2048", "--server.maxUploadSize", "2048", "--server.port", "$INT_PORT_WEB"]
 
   mlflow_ui:
     build:
