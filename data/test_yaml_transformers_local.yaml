@@ -1,0 +1,66 @@
+run:
+  type_data: test
+  type_class: base
+  split_type: base #todo adapt to train
+  split_config:
+    params:
+      test_size: 0.2
+      random_state: 42
+      stratify: false
+
+  type_class_model: transformers
+
+full_data:
+  data:
+    path: data/german/german_credit_risk.csv     # path to xlsx
+    sheet_name: "sheet_name"                 # sheet_name
+    target: "target"             # target
+#    skiprows: 7
+    dropna: False                       # drop rows with NaN
+#    skip: "skip"
+#    date_column: "report_date"
+#    filter_columns:
+#      - "report_date"
+#      - "global_id"
+
+    mapper:
+      1: 0
+      2: 1
+
+
+  features:
+    numeric:
+
+
+    categorical:
+
+
+model:
+  model_name: credit_german_risks
+  framework: sklearn
+  ensemble:
+    type: transformers         # possible right now: voting | stacking | bagging | bases
+    voting: soft          # for VotingClassifier
+    final_estimator: null # for StackingClassifier, example LogisticRegression
+    estimators:
+      - name: transformer_tab
+        type: Transformers
+        params:
+          embed_dim: 32
+          n_heads: 4
+          n_layers: 2
+          mlp_dim: 64
+          dropout: 0.1
+          lr: 0.0001
+          batch_size: 128
+          epochs: 200
+
+metrics:
+
+    base:
+      - auc
+      - f1
+      - accuracy
+      - mse
+      - rmse
+      - r2

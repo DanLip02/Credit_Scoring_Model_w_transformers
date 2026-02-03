@@ -46,7 +46,7 @@ services:
   api:
     build:
       context: .
-      dockerfile: Dockerfile.api  # по умолчанию, можно опустить
+      dockerfile: Dockerfile.api_cuda
     image: "api"
 #    dns:
 #      - 1.1.1.1
@@ -57,6 +57,12 @@ services:
       - ./backend:/backend
     ports:
       - "${EXT_PORT_API}:${INT_PORT_API}"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+
     command: [ "backend.main:app", "--port", "$INT_PORT_API", "--host", "$host_server" ]
     env_file:
       - .env
