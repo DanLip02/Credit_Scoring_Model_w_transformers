@@ -1,0 +1,65 @@
+# ================================
+# Base image с CUDA (RTX 4060, CUDA 12.1)
+# ================================
+FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+
+# ================================
+# Системные настройки
+# ================================
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /api
+
+# ================================
+# Устанавливаем Python 3.11
+# ================================
+RUN apt-get update && apt-get install -y \
+    python3.11 \
+    python3.11-distutils \
+    python3-pip \
+    ca-certificates \
+    && ln -sf /usr/bin/python3.11 /usr/bin/python \
+    && ln -sf /usr/bin/pip3 /usr/bin/pip \
+    && rm -rf /var/lib/apt/lists/*
+
+# ================================
+# Устанавливаем torch с CUDA (СТРОГО ОТДЕЛЬНО)
+# ================================
+RUN pip install --upgrade pip \
+ && pip install \
+    torch==2.5.1+cu121 \
+    torchvision==0.20.1+cu121 \
+    torchaudio==2.5.1+cu121 \
+    --index-url https://download.pytorch.org/whl/cu121 \
+    --trusted-host files.pythonhosted.org \
+    --trusted-host pypi.org \
+    --trusted-host pypi.python.org
+
+# ================================
+# Устанавливаем остальные зависимости
+# (requirements.txt БЕЗ torch / torchvision / torchaudio)
+# ================================
+COPY requirements.txt /api
+RUN pip install \
+    -r requirements.txt \
+    --trusted-host files.pythonhosted.org \
+    --trusted-host pypi.org \
+    --trusted-host pypi.python.org
+
+# ================================
+# Копируем исходники
+# ================================
+COPY . /api
+
+# ================================
+# Порт API
+# ================================
+EXPOSE 8080
+
+# ================================
+# Запуск
+# ================================
+ENTRYPOINT ["uvicorn"]
+#CMD ["main:app", "--host", "0.0.0.0", "--port", "8080"]
