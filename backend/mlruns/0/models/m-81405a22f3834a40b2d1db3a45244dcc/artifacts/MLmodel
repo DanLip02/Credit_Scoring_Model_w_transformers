@@ -1,0 +1,23 @@
+artifact_path: file:C:/Users/Danch/PycharmProjects/Credit_Scoring_Model_w_transformers/backend/mlruns/0/models/m-81405a22f3834a40b2d1db3a45244dcc/artifacts
+flavors:
+  python_function:
+    config:
+      device: null
+    data: data
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.pytorch
+    pickle_module_name: mlflow.pytorch.pickle_module
+    python_version: 3.12.8
+  pytorch:
+    code: null
+    model_data: data
+    pytorch_version: 2.5.1+cu121
+mlflow_version: 3.7.0
+model_id: m-81405a22f3834a40b2d1db3a45244dcc
+model_size_bytes: 111315
+model_uuid: m-81405a22f3834a40b2d1db3a45244dcc
+prompts: null
+run_id: 1b3bd8d461434922ad0205455eef0fc4
+utc_time_created: '2026-01-28 13:59:09.688370'
