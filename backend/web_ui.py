@@ -4,6 +4,7 @@ import mlflow
 from dotenv import load_dotenv
 import streamlit as st
 import requests
+
 load_dotenv()
 
 
@@ -11,6 +12,8 @@ if __name__ == "__main__":
 
     DEPLOY_HOST = os.getenv("deploy_host", "localhost")
     DEPLOY_PORT = os.getenv("deploy_port", 5001)
+    API_HOST = os.getenv("host_server")
+    API_PORT = os.getenv("api_port")
     st.title("🚀 Credit Risk ML Platform")
 
     uploaded = st.file_uploader("Load YAML config", type=["yaml", "yml"])
@@ -30,7 +33,7 @@ if __name__ == "__main__":
                 files = {"file": (uploaded.name, uploaded, "application/x-yaml")}
 
                 response = requests.post(
-                    f"http://127.0.0.1:8000/run_learning/",
+                    f"http://{API_HOST}:{API_PORT}/run_learning/",
                     files=files,
                     timeout=300  # 5 минут таймаут
                 )
