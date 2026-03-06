@@ -23,13 +23,23 @@ import os
 
 class TabDataset(Dataset):
     def __init__(self, cat, num, y=None):
-        self.cat = cat.astype("int64")
+        self.cat = cat.astype("int64") if cat is not None else None #or it can be a prblem here
         self.num = num.astype("float32") if num is not None else None
         self.y = y.astype("float32") if y is not None else None
 
-    def __len__(self): return len(self.cat)
+    def __len__(self):
+        if self.cat is not None:
+            return len(self.cat)
+
+        if self.num is not None:
+            return len(self.num)
+
+        return len(self.y)
+
     def __getitem__(self, idx):
-        item = {"cat": torch.from_numpy(self.cat[idx])}
+        item = {}
+        if self.cat is not None:  # ✅
+            item["cat"] = torch.from_numpy(self.cat[idx])
         if self.num is not None:
             item["num"] = torch.from_numpy(self.num[idx])
         if self.y is not None:
@@ -40,7 +50,7 @@ def train_loop(model, loader, opt, loss_fn, device):
     model.train()
     total_loss = 0.0
     for batch in loader:
-        cat = batch["cat"].to(device)
+        cat = batch["cat"].to(device) if "cat" in batch else None
         num = batch["num"].to(device) if "num" in batch else None
         y = batch["y"].to(device)
         opt.zero_grad()
@@ -56,7 +66,7 @@ def eval_loop(model, loader, device):
     ys, preds = [], []
     with torch.no_grad():
         for batch in loader:
-            cat = batch["cat"].to(device)
+            cat = batch["cat"].to(device) if "cat" in batch else None
             num = batch["num"].to(device) if "num" in batch else None
             y = batch["y"].to(device)
             out = model(cat, num)

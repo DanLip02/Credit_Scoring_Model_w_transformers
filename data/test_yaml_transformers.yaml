@@ -12,9 +12,9 @@ run:
 
 full_data:
   data:
-    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\german\german_credit_risk.csv     # path to xlsx
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Give_risks\train_give_me_credit_transformer.csv     # path to xlsx
     sheet_name: "sheet_name"                 # sheet_name
-    target: "target"             # target
+    target: "SeriousDlqin2yrs"             # target
 #    skiprows: 7
     dropna: False                       # drop rows with NaN
 #    skip: "skip"
@@ -23,9 +23,9 @@ full_data:
 #      - "report_date"
 #      - "global_id"
 
-    mapper:
-      1: 0
-      2: 1
+#    mapper:
+#      1: 0
+#      2: 1
 
 
   features:
@@ -36,7 +36,7 @@ full_data:
 
 
 model:
-  model_name: credit_german_risks
+  model_name: cre
   framework: sklearn
   ensemble:
     type: transformers         # possible right now: voting | stacking | bagging | bases
@@ -51,9 +51,9 @@ model:
           n_layers: 2
           mlp_dim: 64
           dropout: 0.1
-          lr: 0.0001
+          lr: 0.001
           batch_size: 128
-          epochs: 200
+          epochs: 2
 
 metrics:
 

@@ -58,13 +58,22 @@ class TabTransformerModel(nn.Module):
 
     def forward(self, cat_x, num_x=None):
         # cat_x: LongTensor [B, n_cat]; num_x: FloatTensor [B, n_num]
-        cat_tokens = self.cat_emb(cat_x)           # [B, n_cat, D]
+        tokens = []
+
+        # Categorical token if numeric exists
+        if cat_x is not None and len(self.cat_emb.embs) > 0:
+            cat_tokens = self.cat_emb(cat_x)  # [B, n_cat, D]
+            tokens.append(cat_tokens)
+
+        # Numeric token if numeric exists
         if self.num_proj is not None and num_x is not None:
-            num_token = self.num_proj(num_x)       # [B, 1, D]
-            x = torch.cat([cat_tokens, num_token], dim=1)  # [B, n_cat+1, D]
-        else:
-            x = cat_tokens
-        h = self.transformer(x)                    # [B, seq_len, D]
-        pooled = h.mean(dim=1)                     # [B, D]
-        logit = self.cls(pooled).squeeze(1)        # [B]
+            num_token = self.num_proj(num_x)  # [B, 1, D]
+            tokens.append(num_token)
+
+        assert len(tokens) > 0, "No catigorical, No numerical!"
+
+        x = torch.cat(tokens, dim=1)  # [B, seq_len, D]
+        h = self.transformer(x)  # [B, seq_len, D]
+        pooled = h.mean(dim=1)  # [B, D]
+        logit = self.cls(pooled).squeeze(1)  # [B]
         return torch.sigmoid(logit)

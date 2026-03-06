@@ -68,25 +68,45 @@ class DirectTabTransformer:
         return cat_data, num_data, cat_val_data, num_val_data
 
     def fit(self, X_train, y_train, X_val=None, y_val=None):
-        """learning model on prepared train/val data"""
         from .train_transformers import fit_tabtransformer
 
-        # prepare data
         cat_train, num_train, cat_val, num_val = self.prepare_data(
             X_train, y_train, X_val, y_val, fit=True
         )
-        # using existed X_val/y_val or create from X_train/y_train
+
         if X_val is None or y_val is None:
             from sklearn.model_selection import train_test_split
-            cat_train, cat_val, num_train, num_val, y_train_split, y_val_split = train_test_split(
-                cat_train, num_train, y_train,
+
+            # Собираем только не-None массивы
+            arrays_to_split = [a for a in [cat_train, num_train] if a is not None]
+            split_results = train_test_split(
+                *arrays_to_split, y_train,
                 test_size=0.2,
                 stratify=y_train,
                 random_state=42
             )
+
+            # Распаковываем результат обратно
+            # split_results = [arr_train, arr_val, ..., y_train_split, y_val_split]
+            n = len(arrays_to_split)
+            split_pairs = [(split_results[i * 2], split_results[i * 2 + 1]) for i in range(n)]
+            y_train_split, y_val_split = split_results[-2], split_results[-1]
+
+            idx = 0
+            if cat_train is not None:
+                cat_train, cat_val = split_pairs[idx]
+                idx += 1
+            else:
+                cat_train, cat_val = None, None
+
+            if num_train is not None:
+                num_train, num_val = split_pairs[idx]
+            else:
+                num_train, num_val = None, None
+
+            y_train = y_train_split
             y_val = y_val_split
 
-        # configuration
         TT_config = {
             "embed_dim": self.params.get("embed_dim", 32),
             "n_heads": self.params.get("n_heads", 4),
@@ -100,7 +120,6 @@ class DirectTabTransformer:
 
         print("cardinalities: ", self.cardinalities_)
 
-        # Learn model
         self.model_ = fit_tabtransformer(
             cat_train=cat_train,
             num_train=num_train,
@@ -108,7 +127,7 @@ class DirectTabTransformer:
             cat_val=cat_val,
             num_val=num_val,
             y_val=y_val.values if hasattr(y_val, 'values') else y_val,
-            cardinalities=self.cardinalities_,
+            cardinalities=self.cardinalities_ or [],
             TT=TT_config,
             device=self.device_
         )
@@ -116,14 +135,11 @@ class DirectTabTransformer:
         return self
 
     def predict_proba(self, X):
-        """predict probabilities"""
         if self.model_ is None:
             raise RuntimeError("Model not fitted")
 
-        # preparing data
         cat_data, num_data, _, _ = self.prepare_data(X, fit=False)
 
-        # Create Dataset & DataLoader
         from .train_transformers import TabDataset
         from torch.utils.data import DataLoader
 
@@ -134,13 +150,13 @@ class DirectTabTransformer:
             shuffle=False
         )
 
-        # prediction
         self.model_.eval()
         all_preds = []
 
         with torch.no_grad():
             for batch in loader:
-                cat = batch["cat"].to(self.device_)
+
+                cat = batch["cat"].to(self.device_) if "cat" in batch else None
                 num = batch["num"].to(self.device_) if "num" in batch else None
                 preds = self.model_(cat, num)
                 all_preds.append(preds.cpu().numpy())
