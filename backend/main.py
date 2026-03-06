@@ -4,6 +4,8 @@ import uvicorn
 
 app = FastAPI()
 
+TRACKING_URI = "http://localhost:5000"
+
 @app.post("/run_learning/")
 async def run_learn(file: UploadFile = File(...)):
     """
@@ -67,8 +69,13 @@ def run_main(run_cfg: dict):
         name_experiment = model_cfg.get("model_name", None) if model_cfg is not None else None
         type_class_model = run_cfg.get("type_class_model", None)
 
-        mlflow.set_tracking_uri(
-            f"postgresql+psycopg2://{NAME}:{PASS}@{HOST}:{PORT}/{DB}?options=-csearch_path={SCHEMA}")
+        mlflow.set_tracking_uri(TRACKING_URI)
+
+        REGISTRY_URI = f"postgresql+psycopg2://{NAME}:{PASS}@{HOST}:{PORT}/{DB}?options=-csearch_path={SCHEMA}"
+
+        mlflow.set_registry_uri(REGISTRY_URI)
+        # mlflow.set_tracking_uri(
+        #     f"postgresql+psycopg2://{NAME}:{PASS}@{HOST}:{PORT}/{DB}?options=-csearch_path={SCHEMA}")
 
         X, y, num_features, cat_features = apply_data(type_data=TYPE_DATA,data=full_data_cfg) if full_data_cfg is not None else apply_data(type_data=TYPE_DATA)
         # df = add_features(df)
@@ -100,7 +107,7 @@ def run_main(run_cfg: dict):
         return {"status": "error"}
 
 if __name__ == '__main__':
-    uvicorn.run("main:app", host="127.0.0.1", reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=4101, reload=True)
 
     # df = load_data("/Users/danilalipatov/Credit_Scoring_Model_w_transformers/backend/datasets/german_credit_risk/german_credit_risk.csv")
 
