@@ -1,0 +1,45 @@
+artifact_path: mlflow-artifacts:/0/models/m-133e4d740d2b44649b952321209529dc/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.8
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.2
+is_signature_from_type_hint: false
+mlflow_version: 3.7.0
+model_id: m-133e4d740d2b44649b952321209529dc
+model_size_bytes: 10448982
+model_uuid: m-133e4d740d2b44649b952321209529dc
+prompts: null
+run_id: 367ce2bb8ed245e49931b63997e63bc6
+saved_input_example_info:
+  artifact_path: input_example.json
+  pandas_orient: split
+  serving_input_path: serving_input_example.json
+  type: dataframe
+signature:
+  inputs: '[{"type": "long", "name": "Unnamed: 0", "required": true}, {"type": "double",
+    "name": "RevolvingUtilizationOfUnsecuredLines", "required": true}, {"type": "long",
+    "name": "age", "required": true}, {"type": "double", "name": "NumberOfTime30-59DaysPastDueNotWorse",
+    "required": true}, {"type": "double", "name": "DebtRatio", "required": true},
+    {"type": "double", "name": "MonthlyIncome", "required": true}, {"type": "long",
+    "name": "NumberOfOpenCreditLinesAndLoans", "required": true}, {"type": "double",
+    "name": "NumberOfTimes90DaysLate", "required": true}, {"type": "long", "name":
+    "NumberRealEstateLoansOrLines", "required": true}, {"type": "double", "name":
+    "NumberOfTime60-89DaysPastDueNotWorse", "required": true}, {"type": "double",
+    "name": "NumberOfDependents", "required": true}, {"type": "long", "name": "MonthlyIncome_missing",
+    "required": true}, {"type": "long", "name": "NumberOfDependents_missing", "required":
+    true}, {"type": "long", "name": "HasHiddenLatePayments", "required": true}, {"type":
+    "double", "name": "TotalLatePayments_weighted", "required": true}]'
+  outputs: '[{"type": "long", "name": "SeriousDlqin2yrs", "required": true}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-03-21 14:16:52.395850'

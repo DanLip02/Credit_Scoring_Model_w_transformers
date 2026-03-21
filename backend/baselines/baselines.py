@@ -7,7 +7,8 @@ from sklearn.ensemble import (
     VotingClassifier,
     StackingClassifier,
     BaggingClassifier,
-    RandomForestClassifier
+    RandomForestClassifier,
+    GradientBoostingClassifier
 )
 from sklearn.linear_model import LogisticRegression, LinearRegression
 from xgboost import XGBClassifier
@@ -58,6 +59,8 @@ def load_model_from_cfg(model_type, params):
         return CatBoostClassifier(**params)
     elif model_type == "LinearRegression":
         return LinearRegression(**params)
+    elif model_type == "GradientBoostingClassifier":
+        return  GradientBoostingClassifier(**params)
     else:
         raise ValueError(f"Unknown model type: {model_type}")
 
@@ -122,7 +125,7 @@ def train_ensemble_model(
             y_test = kwargs["y_test"]
             cat_features = kwargs["cat_features"]
             num_features = kwargs["num_features"]
-            # Иначе берем данные из словаря data
+
         elif data is not None:
             X_train = data.get("X_train")
             y_train = data.get("y_train")
@@ -232,13 +235,11 @@ def train_ensemble_model(
                     registered_model_name="TabTransformer"
                 )
 
-                # Сохраняем препроцессоры как артефакты
                 with tempfile.TemporaryDirectory() as tmpdir:
                     preprocessors_path = f"{tmpdir}/preprocessors.pkl"
                     tabtransformer.save_preprocessors(preprocessors_path)
                     mlflow.log_artifact(preprocessors_path, "preprocessors")
 
-                # Если есть пользовательские метрики, логируем их
                 if metrics:
                     custom_metrics = load_metric(
                         metrics=metrics,
@@ -284,7 +285,7 @@ def train_ensemble_model(
 
             config_model = cfg["ensemble"]
             stop = 0
-            with mlflow.start_run():
+            with mlflow.start_run(run_name=cfg["model_name"]):
                 # mlflow.set_experiment(experimentid="0")
                 mlflow.autolog()
                 # mlflow.set_experiment(cfg["model_name"])
@@ -297,6 +298,8 @@ def train_ensemble_model(
 
                 print(load_metric(metrics=metrics, y_test=y_test, y_pred=y_pred, y_prob=y_prob))
 
+
+                print(cfg["model_name"])
                 mlflow.log_param("model_name", cfg["model_name"])
                 mlflow.log_param("ensemble_type", config_model["type"])
                 input_example = X_test
@@ -322,10 +325,10 @@ def train_ensemble_model(
                     acc = accuracy_score(y_test, y_pred)
                     f1 = f1_score(y_test, y_pred, average="macro")
                     auc = roc_auc_score(y_test, y_prob) if y_prob is not None else None
-                    mlflow.log_metric("accuracy", acc)
-                    mlflow.log_metric("f1", f1)
+                    mlflow.log_metric("test_accuracy", acc)
+                    mlflow.log_metric("test_f1", f1)
                     if auc:
-                        mlflow.log_metric("roc_auc", auc)
+                        mlflow.log_metric("test_roc_auc", auc)
 
             logged_model = mlflow.get_logged_model(model_info.model_id)
             print(logged_model.model_id, logged_model.metrics)

@@ -1,0 +1,61 @@
+run:
+  type_data: test
+  type_class: base
+  split_type: base #todo adapt to train
+  split_config:
+    params:
+      test_size: 0.3
+#      random_state: 42
+      stratify: true
+
+  type_class_model: classification
+
+full_data:
+  data:
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Give_risks\train_give_me_credit_transformer.csv     # path to xlsx
+    sheet_name: "sheet_name"                 # sheet_name
+    target: "SeriousDlqin2yrs"             # target
+#    skiprows: 7
+    dropna: False                       # drop rows with NaN
+#    skip: "skip"
+#    date_column: "report_date"
+#    filter_columns:
+#      - "report_date"
+#      - "global_id"
+
+#    mapper:
+#      1: 0
+#      2: 1
+
+
+  features:
+    numeric:
+
+
+    categorical:
+
+
+model:
+  model_name: logreg_test_transf
+  framework: sklearn
+  ensemble:
+    type: base         # possible right now: voting | stacking | bagging | bases
+    voting: soft          # for VotingClassifier
+    final_estimator: null # for StackingClassifier, example LogisticRegression
+    estimators:
+      - name: cb
+        type: LogisticRegression
+        params:
+         penalty: 'l2'
+
+metrics:
+#    custom:
+#          ar:
+#            use_transform: direct
+#            min_benchmark: 1
+#            max_benchmark: 7
+
+    base:
+      - auc
+      - f1
+      - accuracy
