@@ -12,7 +12,7 @@ run:
 
 full_data:
   data:
-    path: Credit_Scoring_Model_w_transformers\data\Give_risks\train_give_me_credit_transformer.csv     # path to xlsx
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Give_risks\train_give_me_credit_baseline.csv     # path to xlsx
     sheet_name: "sheet_name"                 # sheet_name
     target: "SeriousDlqin2yrs"             # target
 #    skiprows: 7
@@ -36,7 +36,7 @@ full_data:
 
 
 model:
-  model_name: cre
+  model_name: transformers_test
   framework: sklearn
   ensemble:
     type: transformers         # possible right now: voting | stacking | bagging | bases
@@ -46,14 +46,14 @@ model:
       - name: transformer_tab
         type: Transformers
         params:
-          embed_dim: 32
+          embed_dim: 64
           n_heads: 4
           n_layers: 2
-          mlp_dim: 64
+          mlp_dim: 128
           dropout: 0.1
-          lr: 0.001
-          batch_size: 128
-          epochs: 2
+          lr: 0.0001
+          batch_size: 512
+          epochs: 50
 
 metrics:
 
@@ -61,6 +61,3 @@ metrics:
       - auc
       - f1
       - accuracy
-      - mse
-      - rmse
-      - r2

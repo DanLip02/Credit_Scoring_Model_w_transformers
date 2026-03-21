@@ -1,6 +1,9 @@
 # tab_transformer.py
 import torch
 import torch.nn as nn
+from git.repo.fun import touch
+
+
 # import torch.nn.functional as F
 
 class CatEmbeddings(nn.Module):
@@ -20,12 +23,18 @@ class CatEmbeddings(nn.Module):
 class NumProj(nn.Module):
     def __init__(self, n_num, emb_dim):
         super().__init__()
-        self.proj = nn.Linear(n_num, emb_dim)
+        # self.proj = nn.Linear(n_num, emb_dim)
+        self.proj = nn.ModuleList([nn.Linear(1, emb_dim) for _ in range(n_num)])
 
     def forward(self, x):
         # x: [B, n_num]
-        out = self.proj(x).unsqueeze(1)  # [B, 1, D]
-        return out
+        tokens = []
+        # out = self.proj(x).unsqueeze(1)  # [B, 1, D]   -> All numeric features to one
+
+        for i, layer in enumerate(self.proj):
+            token = layer(x[:, i].unsqueeze(1))
+            tokens.append(token)
+        return torch.stack(tokens, dim=1)
 
 class SimpleTransformer(nn.Module):
     def __init__(self, d_model=32, nhead=4, num_layers=2, dim_feedforward=64, dropout=0.1):
@@ -49,6 +58,7 @@ class TabTransformerModel(nn.Module):
         self.cat_emb = CatEmbeddings(cardinalities, emb_dim)
         self.num_proj = NumProj(n_num, emb_dim) if n_num>0 else None
         self.transformer = SimpleTransformer(d_model=emb_dim, nhead=nhead, num_layers=n_layers, dim_feedforward=mlp_dim, dropout=dropout)
+        self.cls_token = nn.Parameter(torch.randn(1, 1, emb_dim))  #cls token - not mean pooling, but with weights.
         self.cls = nn.Sequential(
             nn.Linear(emb_dim, mlp_dim),
             nn.ReLU(),
@@ -73,7 +83,10 @@ class TabTransformerModel(nn.Module):
         assert len(tokens) > 0, "No catigorical, No numerical!"
 
         x = torch.cat(tokens, dim=1)  # [B, seq_len, D]
+        cls = self.cls_token.expand(x.size(0), -1, -1)
+        x = torch.cat([cls, x], dim=1)
         h = self.transformer(x)  # [B, seq_len, D]
-        pooled = h.mean(dim=1)  # [B, D]
+        # pooled = h.mean(dim=1)  # [B, D]
+        pooled = h[:, 0]
         logit = self.cls(pooled).squeeze(1)  # [B]
         return torch.sigmoid(logit)
