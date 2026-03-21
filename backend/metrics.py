@@ -45,17 +45,17 @@ def calc_base_metrics(metrics_list, y_test, y_pred, y_prob=None):
     for metric in metrics_list:
         try:
             if metric == "accuracy":
-                results["accuracy"] = accuracy_score(y_test, y_pred)
+                results["test_accuracy"] = accuracy_score(y_test, y_pred)
             elif metric == "f1":
-                results["f1"] = f1_score(y_test, y_pred, average="macro")
+                results["test_f1"] = f1_score(y_test, y_pred, average="macro")
             elif metric == "auc":
-                results["auc"] = roc_auc_score(y_test, y_prob if y_prob is not None else y_pred, multi_class='ovo')
+                results["test_auc"] = roc_auc_score(y_test, y_prob if y_prob is not None else y_pred)
             elif metric == "mse":
-                results["mse"] = mean_squared_error(y_test, y_pred)
+                results["test_mse"] = mean_squared_error(y_test, y_pred)
             elif metric == "mae":
-                results["mae"] = mean_absolute_error(y_test, y_pred)
+                results["test_mae"] = mean_absolute_error(y_test, y_pred)
             elif metric == "r2":
-                results["r2"] = r2_score(y_test, y_pred)
+                results["test_r2"] = r2_score(y_test, y_pred)
             else:
                 print(f"Not correct: {metric}")
                 results[metric] = None
