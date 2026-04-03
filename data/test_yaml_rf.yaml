@@ -12,9 +12,9 @@ run:
 
 full_data:
   data:
-    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Give_risks\train_give_me_credit_transformer.csv     # path to xlsx
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Home_credit\application_train_all_models.csv     # path to xlsx
     sheet_name: "sheet_name"                 # sheet_name
-    target: "SeriousDlqin2yrs"             # target
+    target: "TARGET"             # target
 #    skiprows: 7
     dropna: False                       # drop rows with NaN
 #    skip: "skip"
