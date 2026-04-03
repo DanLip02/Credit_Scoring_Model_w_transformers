@@ -1,0 +1,77 @@
+artifact_path: mlflow-artifacts:/0/models/m-0eee66c4fa53436d94fd0523354891a0/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.8
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.2
+is_signature_from_type_hint: false
+mlflow_version: 3.7.0
+model_id: m-0eee66c4fa53436d94fd0523354891a0
+model_size_bytes: 228905
+model_uuid: m-0eee66c4fa53436d94fd0523354891a0
+prompts: null
+run_id: 61fb16ddff6540bd9a3f865c2fcea1c3
+signature:
+  inputs: '[{"type": "long", "name": "Unnamed: 0", "required": true}, {"type": "string",
+    "name": "NAME_CONTRACT_TYPE", "required": true}, {"type": "string", "name": "CODE_GENDER",
+    "required": true}, {"type": "string", "name": "FLAG_OWN_CAR", "required": true},
+    {"type": "string", "name": "FLAG_OWN_REALTY", "required": true}, {"type": "long",
+    "name": "CNT_CHILDREN", "required": true}, {"type": "double", "name": "AMT_INCOME_TOTAL",
+    "required": true}, {"type": "double", "name": "AMT_CREDIT", "required": true},
+    {"type": "double", "name": "AMT_ANNUITY", "required": true}, {"type": "double",
+    "name": "AMT_GOODS_PRICE", "required": true}, {"type": "string", "name": "NAME_TYPE_SUITE",
+    "required": true}, {"type": "string", "name": "NAME_INCOME_TYPE", "required":
+    true}, {"type": "string", "name": "NAME_EDUCATION_TYPE", "required": true}, {"type":
+    "string", "name": "NAME_FAMILY_STATUS", "required": true}, {"type": "string",
+    "name": "NAME_HOUSING_TYPE", "required": true}, {"type": "double", "name": "REGION_POPULATION_RELATIVE",
+    "required": true}, {"type": "long", "name": "DAYS_BIRTH", "required": true}, {"type":
+    "long", "name": "DAYS_EMPLOYED", "required": true}, {"type": "double", "name":
+    "DAYS_REGISTRATION", "required": true}, {"type": "long", "name": "DAYS_ID_PUBLISH",
+    "required": true}, {"type": "long", "name": "FLAG_EMP_PHONE", "required": true},
+    {"type": "long", "name": "FLAG_WORK_PHONE", "required": true}, {"type": "long",
+    "name": "FLAG_PHONE", "required": true}, {"type": "long", "name": "FLAG_EMAIL",
+    "required": true}, {"type": "string", "name": "OCCUPATION_TYPE", "required": true},
+    {"type": "double", "name": "CNT_FAM_MEMBERS", "required": true}, {"type": "long",
+    "name": "REGION_RATING_CLIENT", "required": true}, {"type": "long", "name": "REGION_RATING_CLIENT_W_CITY",
+    "required": true}, {"type": "string", "name": "WEEKDAY_APPR_PROCESS_START", "required":
+    true}, {"type": "long", "name": "HOUR_APPR_PROCESS_START", "required": true},
+    {"type": "long", "name": "REG_REGION_NOT_LIVE_REGION", "required": true}, {"type":
+    "long", "name": "REG_REGION_NOT_WORK_REGION", "required": true}, {"type": "long",
+    "name": "LIVE_REGION_NOT_WORK_REGION", "required": true}, {"type": "long", "name":
+    "REG_CITY_NOT_LIVE_CITY", "required": true}, {"type": "long", "name": "REG_CITY_NOT_WORK_CITY",
+    "required": true}, {"type": "long", "name": "LIVE_CITY_NOT_WORK_CITY", "required":
+    true}, {"type": "string", "name": "ORGANIZATION_TYPE", "required": true}, {"type":
+    "double", "name": "EXT_SOURCE_1", "required": true}, {"type": "double", "name":
+    "EXT_SOURCE_2", "required": true}, {"type": "double", "name": "EXT_SOURCE_3",
+    "required": true}, {"type": "double", "name": "OBS_30_CNT_SOCIAL_CIRCLE", "required":
+    true}, {"type": "double", "name": "DEF_30_CNT_SOCIAL_CIRCLE", "required": true},
+    {"type": "double", "name": "OBS_60_CNT_SOCIAL_CIRCLE", "required": true}, {"type":
+    "double", "name": "DEF_60_CNT_SOCIAL_CIRCLE", "required": true}, {"type": "double",
+    "name": "DAYS_LAST_PHONE_CHANGE", "required": true}, {"type": "long", "name":
+    "FLAG_DOCUMENT_3", "required": true}, {"type": "long", "name": "FLAG_DOCUMENT_5",
+    "required": true}, {"type": "long", "name": "FLAG_DOCUMENT_6", "required": true},
+    {"type": "long", "name": "FLAG_DOCUMENT_8", "required": true}, {"type": "long",
+    "name": "FLAG_DOCUMENT_9", "required": true}, {"type": "long", "name": "FLAG_DOCUMENT_11",
+    "required": true}, {"type": "long", "name": "FLAG_DOCUMENT_13", "required": true},
+    {"type": "long", "name": "FLAG_DOCUMENT_14", "required": true}, {"type": "long",
+    "name": "FLAG_DOCUMENT_15", "required": true}, {"type": "long", "name": "FLAG_DOCUMENT_16",
+    "required": true}, {"type": "long", "name": "FLAG_DOCUMENT_18", "required": true},
+    {"type": "double", "name": "AMT_REQ_CREDIT_BUREAU_HOUR", "required": true}, {"type":
+    "double", "name": "AMT_REQ_CREDIT_BUREAU_DAY", "required": true}, {"type": "double",
+    "name": "AMT_REQ_CREDIT_BUREAU_WEEK", "required": true}, {"type": "double", "name":
+    "AMT_REQ_CREDIT_BUREAU_MON", "required": true}, {"type": "double", "name": "AMT_REQ_CREDIT_BUREAU_QRT",
+    "required": true}, {"type": "double", "name": "AMT_REQ_CREDIT_BUREAU_YEAR", "required":
+    true}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "int64", "shape": [-1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-04-02 19:13:52.957582'
