@@ -1,8 +1,8 @@
-import numpy as np
 import requests
+import numpy as np
 from sklearn.metrics import (
     roc_auc_score, accuracy_score, f1_score,
-    mean_squared_error, mean_absolute_error, r2_score
+    mean_squared_error, mean_absolute_error, r2_score, confusion_matrix, roc_curve
 )
 from dotenv import load_dotenv
 import json
@@ -10,6 +10,75 @@ import os
 
 
 load_dotenv()
+
+
+def find_optimal_threshold(y_test, y_prob, fn_cost=5, fp_cost=1):
+    """
+    fn_cost: cost of skip
+    fp_cost: cost of skip
+    """
+    fpr, tpr, thresholds = roc_curve(y_test, y_prob)
+
+    total_cost = []
+    for thresh in thresholds:
+        y_pred = (y_prob >= thresh).astype(int)
+        tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
+        cost = fn * fn_cost + fp * fp_cost
+        total_cost.append(cost)
+
+    best_idx = np.argmin(total_cost)
+    best_threshold = thresholds[best_idx]
+    best_cost = total_cost[best_idx]
+
+    return best_threshold, best_cost
+
+def calc_credit_metrics(y_true, y_pred, pos_label=1):
+    """
+    Calculation the most important metrics in credit scoring .
+
+    pos_label: target "default" / "bad" (usually 1)
+    """
+    tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
+
+    fnr = fn / (fn + tp) if (fn + tp) > 0 else 0  # missed defaults ← important!
+    tpr = tp / (fn + tp) if (fn + tp) > 0 else 0  # detected defaults (Recall)
+    fpr = fp / (fp + tn) if (fp + tn) > 0 else 0  # false rate for good
+    tnr = tn / (tn + fp) if (tn + fp) > 0 else 0  # true rate for good
+    precision = tp / (tp + fp) if (tp + fp) > 0 else 0
+
+    # additional business metrics
+    false_negative_cost = fn
+    false_positive_cost = fp
+
+    return {
+        "fnr": fnr,  # False Negative Rate
+        "tpr": tpr,  # True Positive Rate (Recall)
+        "fpr": fpr,  # False Positive Rate
+        "tnr": tnr,  # True Negative Rate (Specificity)
+        "precision": precision,
+        "fn_abs": fn,  #  FN
+        "fp_abs": fp,  #  FP
+        "tp_abs": tp,  # TP
+        "tn_abs": tn  #  TN
+    }
+
+
+def calc_ks_metric(y_true, y_prob, pos_label=1):
+    """
+    Kolmogorov-Smirnov statistic — max dif between cumulate rates of bad and good clients
+    """
+    from sklearn.metrics import roc_curve
+
+    fpr, tpr, thresholds = roc_curve(y_true, y_prob, pos_label=pos_label)
+    ks = max(tpr - fpr)
+
+    optimal_idx = np.argmax(tpr - fpr)
+    optimal_threshold = thresholds[optimal_idx] if optimal_idx < len(thresholds) else None
+
+    return {
+        "ks": ks,
+        "optimal_threshold": optimal_threshold
+    }
 
 def compute_ar_metric(y_true, y_pred, skip=None,
                       use_transform="direct",
@@ -42,6 +111,9 @@ def compute_ar_metric(y_true, y_pred, skip=None,
 
 def calc_base_metrics(metrics_list, y_test, y_pred, y_prob=None):
     results = {}
+    print("Уникальные значения y_pred:", np.unique(y_pred))
+    print("Доля единиц:", (y_pred == 1).mean())
+
     for metric in metrics_list:
         try:
             if metric == "accuracy":
@@ -56,6 +128,25 @@ def calc_base_metrics(metrics_list, y_test, y_pred, y_prob=None):
                 results["test_mae"] = mean_absolute_error(y_test, y_pred)
             elif metric == "r2":
                 results["test_r2"] = r2_score(y_test, y_pred)
+            elif metric == "fnr":
+                credit_metrics = calc_credit_metrics(y_test, y_pred)
+                results["test_fnr"] = credit_metrics["fnr"]
+            elif metric == "tpr":
+                credit_metrics = calc_credit_metrics(y_test, y_pred)
+                results["test_tpr"] = credit_metrics["tpr"]
+            elif metric == "fpr":
+                credit_metrics = calc_credit_metrics(y_test, y_pred)
+                results["test_fpr"] = credit_metrics["fpr"]
+            elif metric == "precision":
+                credit_metrics = calc_credit_metrics(y_test, y_pred)
+                results["test_precision"] = credit_metrics["precision"]
+            elif metric == "ks":
+                ks_result = calc_ks_metric(y_test, y_prob, pos_label=1)
+                results["test_ks"] = ks_result["ks"]
+                results["test_optimal_threshold"] = ks_result["optimal_threshold"]
+            elif metric == "credit_matrix":
+                credit_metrics = calc_credit_metrics(y_test, y_pred)
+                results.update({f"test_{k}": v for k, v in credit_metrics.items()})
             else:
                 print(f"Not correct: {metric}")
                 results[metric] = None

@@ -115,7 +115,11 @@ class DirectTabTransformer:
             "dropout": self.params.get("dropout", 0.1),
             "lr": self.params.get("lr", 0.001),
             "batch_size": self.params.get("batch_size", 128),
-            "epochs": self.params.get("epochs", 20)
+            "epochs": self.params.get("epochs", 20),
+            "class_weight": self.params.get("class_weight", "balanced"),
+            "weight_decay": self.params.get("weight_decay", 0.01),
+            "early_stopping_patience": self.params.get("early_stopping_patience", 10),
+            "warmup_ratio": self.params.get("warmup_ratio", 0.1),
         }
 
         print("cardinalities: ", self.cardinalities_)

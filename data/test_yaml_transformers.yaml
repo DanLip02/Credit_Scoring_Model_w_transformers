@@ -6,15 +6,15 @@ run:
     params:
       test_size: 0.2
       random_state: 42
-      stratify: false
+      stratify: true
 
   type_class_model: transformers
 
 full_data:
   data:
-    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Home_credit\application_train_all_models.csv     # path to xlsx
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Give_risks\train_give_me_credit_transformer.csv     # path to xlsx
     sheet_name: "sheet_name"                 # sheet_name
-    target: "TARGET"             # target
+    target: "SeriousDlqin2yrs"             # target
 #    skiprows: 7
     dropna: False                       # drop rows with NaN
 #    skip: "skip"
@@ -36,28 +36,49 @@ full_data:
 
 
 model:
-  model_name: transformers_test
+  model_name: transformers_test_first_ds
   framework: sklearn
   ensemble:
     type: transformers         # possible right now: voting | stacking | bagging | bases
     voting: soft          # for VotingClassifier
     final_estimator: null # for StackingClassifier, example LogisticRegression
     estimators:
-      - name: transformer_tab
+      - name: transformer_tab_first_ds
         type: Transformers
         params:
-          embed_dim: 64
-          n_heads: 4
+
+          embed_dim: 32
+          n_heads: 4                 #
           n_layers: 2
-          mlp_dim: 128
-          dropout: 0.1
-          lr: 0.0001
-          batch_size: 512
+          mlp_dim: 64                #
+          dropout: 0.3               #
+          lr: 0.0003                 #
+          batch_size: 256
           epochs: 50
+          class_weight: 'balanced'
+          weight_decay: 0.02
+          early_stopping_patience: 10
+          warmup_ratio: 0.1
+#            embed_dim: 96
+#            n_heads: 8
+#            n_layers: 4
+#            mlp_dim: 192
+#            dropout: 0.2
+#            lr: 0.0001
+#            batch_size: 256
+#            epochs: 30
+#            class_weight: 'balanced'       # или 'balanced' если не поддерживает список
+#            weight_decay: 0.01              # добавить L2 регуляризацию
+#            early_stopping_patience: 10     # добавить раннюю остановку
+#            warmup_ratio: 0.1               # прогрев learning rate
 
 metrics:
 
     base:
       - auc
-      - f1
+      - ks
+      - fnr
+      - tpr
+      - fpr
+      - precision
       - accuracy
