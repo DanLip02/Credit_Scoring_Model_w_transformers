@@ -4,17 +4,17 @@ run:
   split_type: base #todo adapt to train
   split_config:
     params:
-      test_size: 0.3
-#      random_state: 42
+      test_size: 0.2
+      random_state: 42
       stratify: true
 
   type_class_model: classification
 
 full_data:
   data:
-    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Home_credit\application_train_all_models.csv     # path to xlsx
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Give_risks\train_give_me_credit_baseline.csv     # path to xlsx
     sheet_name: "sheet_name"                 # sheet_name
-    target: "TARGET"             # target
+    target: "SeriousDlqin2yrs"             # target
 #    skiprows: 7
     dropna: False                       # drop rows with NaN
 #    skip: "skip"
@@ -36,7 +36,7 @@ full_data:
 
 
 model:
-  model_name: CatBoostClassifier_test_transf
+  model_name: CatBoostClassifier_test_transf_first_ds
   framework: sklearn
   ensemble:
     type: base         # possible right now: voting | stacking | bagging | bases
@@ -46,9 +46,14 @@ model:
       - name: cb
         type: CatBoostClassifier
         params:
-          n_estimators: 100
-          max_depth: 7
-          learning_rate: 0.01
+            iterations: 200
+            depth: 6
+            learning_rate: 0.05
+#            auto_class_weights: 'Balanced'
+            random_seed: 42
+            verbose: 100
+            early_stopping_rounds: 100
+            eval_metric: 'AUC'
 
 metrics:
 #    custom:
@@ -59,5 +64,9 @@ metrics:
 
     base:
       - auc
-      - f1
+      - ks
+      - fnr
+      - tpr
+      - fpr
+      - precision
       - accuracy

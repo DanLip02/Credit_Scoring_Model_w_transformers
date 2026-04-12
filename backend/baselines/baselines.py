@@ -15,8 +15,8 @@ from xgboost import XGBClassifier
 from sklearn.metrics import f1_score, roc_auc_score, accuracy_score
 from sklearn.pipeline import Pipeline
 from catboost import CatBoostClassifier
-# from split_yaml import load_config
-# from split_data import split_data
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline as ImbPipeline
 import logging
 import os
 from sklearn.compose import ColumnTransformer
@@ -202,9 +202,21 @@ def train_ensemble_model(
                 y_val=y_val
             )
 
-            # Предсказания на тесте
             y_pred = tabtransformer.predict(X_test)
             y_prob = tabtransformer.predict_proba(X_test)[:, 1]
+
+            from backend.metrics import find_optimal_threshold
+
+            best_threshold, best_cost = find_optimal_threshold(
+                y_test, y_prob,
+                fn_cost=5,
+                fp_cost=1
+            )
+
+            y_pred = (y_prob >= best_threshold).astype(int)
+
+            print(f"Optimal threshold: {best_threshold:.4f}")
+            print(f"Canceles: {y_pred.mean():.2%}")
 
             with mlflow.start_run(run_name="tabtransformer"):
                 mlflow.autolog()
@@ -295,6 +307,29 @@ def train_ensemble_model(
 
                 y_prob = getattr(model_pipeline, "predict_proba", lambda X: None)(X_test)
                 y_prob = y_prob[:, 1] if y_prob is not None else None
+
+                if y_prob is not None:
+                    from backend.metrics import find_optimal_threshold
+
+                    # optimal threshold
+                    best_threshold, best_cost = find_optimal_threshold(
+                        y_test, y_prob,
+                        fn_cost=5,  # skip efault 5 more expensive
+                        fp_cost=1
+                    )
+
+                    y_pred = (y_prob >= best_threshold).astype(int)
+
+                    # logs threshold MLflow
+                    mlflow.log_metric("optimal_threshold", best_threshold)
+                    mlflow.log_metric("optimal_cost", best_cost)
+                    mlflow.log_metric("reject_rate", y_pred.mean())
+
+                    print(f"Optimal threshold: {best_threshold:.4f}")
+                    print(f"Canceles: {y_pred.mean():.2%}")
+                else:
+                    # fallback if not in  predict_proba
+                    y_pred = model_pipeline.predict(X_test)
 
                 print(load_metric(metrics=metrics, y_test=y_test, y_pred=y_pred, y_prob=y_prob))
 

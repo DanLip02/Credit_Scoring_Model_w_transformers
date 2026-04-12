@@ -35,7 +35,7 @@ if __name__ == "__main__":
                 response = requests.post(
                     f"http://{API_HOST}:{API_PORT}/run_learning/",
                     files=files,
-                    timeout=300  # 5 минут таймаут
+                    timeout=300
                 )
 
                 if response.status_code == 200:
