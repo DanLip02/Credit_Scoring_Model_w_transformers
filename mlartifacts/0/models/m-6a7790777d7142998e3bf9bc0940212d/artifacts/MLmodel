@@ -1,0 +1,40 @@
+artifact_path: mlflow-artifacts:/0/models/m-6a7790777d7142998e3bf9bc0940212d/artifacts
+flavors:
+  python_function:
+    env:
+      conda: conda.yaml
+      virtualenv: python_env.yaml
+    loader_module: mlflow.sklearn
+    model_path: model.pkl
+    predict_fn: predict
+    python_version: 3.12.8
+  sklearn:
+    code: null
+    pickled_model: model.pkl
+    serialization_format: cloudpickle
+    sklearn_version: 1.7.2
+is_signature_from_type_hint: false
+mlflow_version: 3.7.0
+model_id: m-6a7790777d7142998e3bf9bc0940212d
+model_size_bytes: 233387
+model_uuid: m-6a7790777d7142998e3bf9bc0940212d
+prompts: null
+run_id: d33b4570078d4c86aabdf3dda79f7a77
+signature:
+  inputs: '[{"type": "long", "name": "Unnamed: 0", "required": true}, {"type": "double",
+    "name": "RevolvingUtilizationOfUnsecuredLines", "required": true}, {"type": "long",
+    "name": "age", "required": true}, {"type": "double", "name": "NumberOfTime30-59DaysPastDueNotWorse",
+    "required": true}, {"type": "double", "name": "DebtRatio", "required": true},
+    {"type": "double", "name": "MonthlyIncome", "required": true}, {"type": "long",
+    "name": "NumberOfOpenCreditLinesAndLoans", "required": true}, {"type": "double",
+    "name": "NumberOfTimes90DaysLate", "required": true}, {"type": "long", "name":
+    "NumberRealEstateLoansOrLines", "required": true}, {"type": "double", "name":
+    "NumberOfTime60-89DaysPastDueNotWorse", "required": true}, {"type": "double",
+    "name": "NumberOfDependents", "required": true}, {"type": "long", "name": "MonthlyIncome_missing",
+    "required": true}, {"type": "long", "name": "NumberOfDependents_missing", "required":
+    true}, {"type": "long", "name": "HasHiddenLatePayments", "required": true}, {"type":
+    "double", "name": "TotalLatePayments_weighted", "required": true}]'
+  outputs: '[{"type": "tensor", "tensor-spec": {"dtype": "int64", "shape": [-1]}}]'
+  params: null
+type_hint_from_example: false
+utc_time_created: '2026-04-12 18:16:40.440893'

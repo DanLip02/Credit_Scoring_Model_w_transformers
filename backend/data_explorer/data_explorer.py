@@ -37,7 +37,7 @@ def clean_target(df: pd.DataFrame, target_col: str, maps_num: dict) -> pd.DataFr
     before = len(df)
     df = df.dropna(subset=[target_col])
     if len(df) < before:
-        print(f"⚠️ Deleted {before - len(df)} rows with NaN in target '{target_col}'")
+        print(f"Deleted {before - len(df)} rows with NaN in target '{target_col}'")
 
     # df[target_col] = df[target_col].astype(str).str.strip().str.lower()
     # df[target_col] = df[target_col].map(maps_num) if target_col in df.columns and maps_num is not None else df[target_col]
@@ -60,6 +60,7 @@ def prepare_features(df: pd.DataFrame, cfg: dict):
     skip = cfg["data"].get("skip", None)
     date_col = cfg["data"].get("date_column", None)
     filter_col = cfg["data"].get("filter_columns", None)
+    dropna = cfg["data"].get("dropna", False)
     df = df[df[skip] == 0] if skip is not None else df
 
     if date_col is not None:
@@ -69,7 +70,8 @@ def prepare_features(df: pd.DataFrame, cfg: dict):
 
     print(df.columns)
 
-    df = clean_target(df, target_col, maps_num)
+    if dropna is not False:
+        df = clean_target(df, target_col, maps_num)
 
     if num_features is not None and cat_features is not None:
         X = df[num_features + cat_features].copy()
@@ -204,6 +206,7 @@ def split_data(target_col: pd.Series,
         raise ValueError(f"❌ Shape X ({len(df)}) and y ({len(target_col)}) not same ")
 
     if method == "base":
+        print("stratify status:", params.get("stratify", False))
         stratify_vals = target_col if params.get("stratify", False) else None
         X_train, X_test, y_train, y_test = train_test_split(
             df,

@@ -12,9 +12,9 @@ run:
 
 full_data:
   data:
-    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Home_credit\application_train_all_models.csv     # path to xlsx
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Give_risks\train_give_me_credit_baseline.csv     # path to xlsx
     sheet_name: "sheet_name"                 # sheet_name
-    target: "TARGET"             # target
+    target: "SeriousDlqin2yrs"             # target
 #    skiprows: 7
     dropna: False                       # drop rows with NaN
 #    skip: "skip"
@@ -36,7 +36,7 @@ full_data:
 
 
 model:
-  model_name: gradient_boosting_classifier_test_transf
+  model_name: gradient_boosting_classifier_test_transf_first_ds
   framework: sklearn
   ensemble:
     type: base         # possible right now: voting | stacking | bagging | bases
@@ -58,6 +58,10 @@ metrics:
 #            max_benchmark: 7
 
     base:
-      - auc
-      - f1
-      - accuracy
+        - auc
+        - ks
+        - fnr
+        - tpr
+        - fpr
+        - precision
+        - accuracy
