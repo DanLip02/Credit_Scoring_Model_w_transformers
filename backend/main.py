@@ -83,6 +83,8 @@ def run_main(run_cfg: dict):
         assert isinstance(X, pd.DataFrame), "X must be DataFrame"
 
         X_train, X_test, y_train, y_test = split_data(target_col=y, df=X, cfg_split=SPLIT_CONFIG, method=SPLIT_TYPE)
+
+        print("Test: ", len(y_test), "Train: ", y_train)
         # preprocessor = get_preprocessor(X_train)
 
         #todo asserts to check valid of dataframes

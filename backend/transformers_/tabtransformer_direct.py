@@ -19,6 +19,10 @@ class DirectTabTransformer:
         self.num_features_ = params.get("num_features")
         self.cardinalities_ = None
         self.device_ = params.get("device", "cuda" if torch.cuda.is_available() else "cpu")
+        self.transfer_mode_ = params.get("transfer_mode", None)
+        self.backbone_path_ = params.get("backbone_path", None)
+        self.freeze_mode_ = params.get("freeze_mode", "last_layer")  # "full"|"last_layer"|"none"
+        self.adapt_epochs_ = params.get("adapt_epochs", 5)
 
     def prepare_data(self, X, y=None, X_val=None, y_val=None, fit=False):
         """preparing data for TabTransformer"""
@@ -42,10 +46,13 @@ class DirectTabTransformer:
 
         # Categorical features
         if fit or self.encoder_ is None:
-            self.encoder_ = OrdinalEncoder()
+            self.encoder_ = OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1)
             cat_data = self.encoder_.fit_transform(X[self.cat_features_].astype(str)) if self.cat_features_ else None
         else:
             cat_data = self.encoder_.transform(X[self.cat_features_].astype(str)) if self.cat_features_ else None
+
+        if cat_data is not None:
+            cat_data = np.clip(cat_data, 0, None)
 
         # Numerical features
         if self.num_features_:
@@ -68,7 +75,7 @@ class DirectTabTransformer:
         return cat_data, num_data, cat_val_data, num_val_data
 
     def fit(self, X_train, y_train, X_val=None, y_val=None):
-        from .train_transformers import fit_tabtransformer
+        from .train_transformers import fit_tabtransformer, finetune_tabtransformer, adapt_to_new_dataset
 
         cat_train, num_train, cat_val, num_val = self.prepare_data(
             X_train, y_train, X_val, y_val, fit=True
@@ -77,7 +84,7 @@ class DirectTabTransformer:
         if X_val is None or y_val is None:
             from sklearn.model_selection import train_test_split
 
-            # Собираем только не-None массивы
+            # Cleect only not None arrays
             arrays_to_split = [a for a in [cat_train, num_train] if a is not None]
             split_results = train_test_split(
                 *arrays_to_split, y_train,
@@ -86,7 +93,7 @@ class DirectTabTransformer:
                 random_state=42
             )
 
-            # Распаковываем результат обратно
+            # Unzip results
             # split_results = [arr_train, arr_val, ..., y_train_split, y_val_split]
             n = len(arrays_to_split)
             split_pairs = [(split_results[i * 2], split_results[i * 2 + 1]) for i in range(n)]
@@ -122,21 +129,73 @@ class DirectTabTransformer:
             "warmup_ratio": self.params.get("warmup_ratio", 0.1),
         }
 
+        y_train_arr = y_train.values if hasattr(y_train, "values") else y_train
+        y_val_arr = y_val.values if hasattr(y_val, "values") else y_val
+
         print("cardinalities: ", self.cardinalities_)
 
-        self.model_ = fit_tabtransformer(
-            cat_train=cat_train,
-            num_train=num_train,
-            y_train=y_train.values if hasattr(y_train, 'values') else y_train,
-            cat_val=cat_val,
-            num_val=num_val,
-            y_val=y_val.values if hasattr(y_val, 'values') else y_val,
-            cardinalities=self.cardinalities_ or [],
-            TT=TT_config,
-            device=self.device_
-        )
+        if self.transfer_mode_ in (None, "pretrain"):
+            # Stage A — обычное обучение с нуля
+            self.model_ = fit_tabtransformer(
+                cat_train=cat_train, num_train=num_train,
+                y_train=y_train_arr,
+                cat_val=cat_val, num_val=num_val,
+                y_val=y_val_arr,
+                cardinalities=self.cardinalities_ or [],
+                TT=TT_config,
+                device=self.device_,
+            )
+
+        elif self.transfer_mode_ == "finetune":
+            # Stage B — файнтюн с переносом backbone
+            assert self.backbone_path_,  "transfer_mode='finetune' требует backbone_path в параметрах"
+            self.model_, _ = finetune_tabtransformer(
+                cat_train=cat_train, num_train=num_train,
+                y_train=y_train_arr,
+                cat_val=cat_val, num_val=num_val,
+                y_val=y_val_arr,
+                cardinalities=self.cardinalities_ or [],
+                TT=TT_config,
+                backbone_checkpoint=self.backbone_path_,
+                freeze_mode=self.freeze_mode_,
+                device=self.device_,
+            )
+
+        elif self.transfer_mode_ in ("zero_shot", "proj_adapt"):
+            # Stage C — адаптация к новому датасету
+            assert self.backbone_path_, "transfer_mode='zero_shot'/'proj_adapt' требует backbone_path"
+            self.model_, _ = adapt_to_new_dataset(
+                cat_data=cat_train, num_data=num_train,
+                y_data=y_train_arr,
+                cardinalities=self.cardinalities_ or [],
+                TT=TT_config,
+                backbone_checkpoint=self.backbone_path_,
+                mode=self.transfer_mode_,
+                adapt_epochs=self.adapt_epochs_,
+                device=self.device_,
+            )
+
+        else:
+            raise ValueError(
+                f"Неизвестный transfer_mode: {self.transfer_mode_!r}. "
+                f"Допустимые: None, 'pretrain', 'finetune', 'zero_shot', 'proj_adapt'"
+            )
 
         return self
+
+        # self.model_ = fit_tabtransformer(
+        #     cat_train=cat_train,
+        #     num_train=num_train,
+        #     y_train=y_train.values if hasattr(y_train, 'values') else y_train,
+        #     cat_val=cat_val,
+        #     num_val=num_val,
+        #     y_val=y_val.values if hasattr(y_val, 'values') else y_val,
+        #     cardinalities=self.cardinalities_ or [],
+        #     TT=TT_config,
+        #     device=self.device_
+        # )
+
+        # return self
 
     def predict_proba(self, X):
         if self.model_ is None:

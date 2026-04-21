@@ -10,13 +10,23 @@ import yaml
 
 def load_german_credit_risk():
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(current_dir)  # Поднимаемся из backend в корень
+    project_root = os.path.dirname(current_dir)
     file_path = os.path.join(project_root, 'data', 'german_credit_data.csv')
 
     print(f"Searching file by path : {file_path}")
     df = pd.read_csv(file_path)
 
     return df
+
+
+def detect_sep(path, skiprows=0):
+    with open(path, 'r', encoding='utf-8') as f:
+        for _ in range(skiprows):
+            f.readline()
+        first_line = f.readline()
+
+    counts = {sep: first_line.count(sep) for sep in [',', ';', '\t', '|']}
+    return max(counts, key=counts.get)
 
 def load_data_old(filepath="german_credit_data.csv"):
     df = pd.read_csv(filepath)
@@ -86,6 +96,16 @@ def prepare_features(df: pd.DataFrame, cfg: dict):
         X = df.drop(columns=[target_col])
 
     y = df[target_col].map(maps_num) if target_col in df.columns and maps_num is not None else df[target_col]
+
+    if maps_num is not None and y.dtype == object:
+        unmapped = y[~y.isin(maps_num.values())].unique()
+        raise ValueError(
+            f"Маппер не сработал для таргета '{target_col}'. "
+            f"Проверь ключи в mapper. "
+            f"Значения в колонке: {df[target_col].unique().tolist()}, "
+            f"Ключи маппера: {list(maps_num.keys())}"
+        )
+
     #todo add check for nums (linear mapping)
     # y = df[target_col] if target_col in df.columns else None
 
@@ -144,6 +164,9 @@ def load_data(cfg: dict):
         df = pd.read_excel(path, sheet_name=sheet_name, skiprows=skiprows)
 
     elif file_format == "csv":
+        # sep = detect_sep(path, skiprows=skiprows)
+        # print(sep)
+        # df = pd.read_csv(path, skiprows=skiprows, sep=';')
         df = pd.read_csv(path, skiprows=skiprows)
 
     elif file_format == "tsv":

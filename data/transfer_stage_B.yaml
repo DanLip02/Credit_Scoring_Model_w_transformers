@@ -1,0 +1,95 @@
+run:
+  type_data: test
+  type_class: base
+  split_type: base
+  split_config:
+    params:
+      test_size: 0.2             # val побольше — датасет маленький, важно не переобучиться
+      random_state: 42
+      stratify: true
+
+  type_class_model: transformers
+
+full_data:
+  data:
+    # !! Заменить на путь к датасету B (маленький, другие фичи)
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_B\train_baseline_ML.csv
+    sheet_name: "sheet_name"
+    target: "SeriousDlqin2yrs"             # имя целевой колонки датасета B
+    dropna: False
+
+  features:
+    numeric:
+    categorical:
+
+model:
+  model_name: tabtransformer_stage_B
+  framework: sklearn
+  ensemble:
+    type: transformers_transfer  # ключевое отличие от Stage A
+    voting: soft
+    final_estimator: null
+    estimators:
+      - name: tabtransformer_finetune
+        type: Transformers
+        params:
+          # ── Архитектура ──────────────────────────────────
+          # ВАЖНО: embed_dim/n_heads/n_layers/mlp_dim должны
+          # совпадать с тем что было в Stage A
+          embed_dim: 32
+          n_heads: 4
+          n_layers: 2
+          mlp_dim: 64
+
+          # ── Регуляризация ────────────────────────────────
+          # На маленьком датасете dropout выше — защита от переобучения
+          dropout: 0.3
+          weight_decay: 0.02
+
+          # ── Обучение ─────────────────────────────────────
+          # lr меньше чем в Stage A — backbone уже обучен,
+          # не хотим сломать выученные представления
+          lr: 0.0003
+          batch_size: 128        # меньше батч = чаще обновления, важно на малых данных
+          epochs: 40
+          early_stopping_patience: 10
+          warmup_ratio: 0.05     # короче прогрев — мы уже в хорошей точке
+
+          class_weight: 'balanced'
+
+          # ── Transfer learning ─────────────────────────────
+          transfer_mode: 'finetune'   # загрузить backbone, дообучить
+
+          # Путь к чекпойнту Stage A
+          # Подставь актуальный абсолютный путь после запуска Stage A
+          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\mlartifacts\0\models\m-68de1aca195d43f5a6cf58ae9e5a84cf\artifacts\data\model.pth
+
+          # freeze_mode определяет что заморозить при файнтюне:
+          #
+          #   'full'       — заморожен весь transformer + cls_token
+          #                  обучаются только cat_emb + num_proj + cls head
+          #                  → используй если B очень маленький (< 1k строк)
+          #                  → самый безопасный вариант, не ломает backbone
+          #
+          #   'last_layer' — заморожены все слои кроме последнего
+          #                  + cat_emb + num_proj + cls head
+          #                  → баланс между стабильностью и адаптацией
+          #                  → рекомендуется для 1k-5k строк
+          #                  → хороший старт для сравнения
+          #
+          #   'none'       — ничего не заморожено, полный файнтюн
+          #                  backbone обучается с lr * 0.1 (меньшим lr)
+          #                  → используй если B достаточно большой (5k+)
+          #                  → риск: может «забыть» знания из A
+          #
+          freeze_mode: 'last_layer'   # << менять для сравнения вариантов
+
+metrics:
+  base:
+    - auc
+    - ks
+    - fnr
+    - tpr
+    - fpr
+    - precision
+    - accuracy

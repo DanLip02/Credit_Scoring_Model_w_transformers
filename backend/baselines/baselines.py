@@ -175,26 +175,38 @@ def train_ensemble_model(
 
         ensemble_type = cfg.get("ensemble", {}).get("type", "").lower()
         print(ensemble_type)
-        if ensemble_type == 'transformers':
+        if ensemble_type in ('transformers', 'transformers_transfer'):
             print("Training TabTransformer...")
 
-            # Создаем модель TabTransformer
             from backend.transformers_.tabtransformer_direct import DirectTabTransformer
             import tempfile
 
-            # Получаем конфигурацию
             tt_params = cfg["ensemble"]["estimators"][0]["params"]
 
-            # Можно передать X_val/y_val если есть (например, для ранней остановки)
             X_val = kwargs.get("X_val", None)
             y_val = kwargs.get("y_val", None)
 
-            # Создаем модель
-            tabtransformer = DirectTabTransformer(**tt_params,
-                                                  cat_features=cat_features,
-                                                  num_features=num_features)
+            # Для transfer learning передаём backbone_path из конфига или kwargs
+            if ensemble_type == 'transformers_transfer':
+                tt_params = tt_params.copy()
+                # backbone_path from kwarg or config
+                if "backbone_path" not in tt_params:
+                    tt_params["backbone_path"] = kwargs.get("backbone_path", None)
+                if "transfer_mode" not in tt_params:
+                    tt_params["transfer_mode"] = kwargs.get("transfer_mode", "finetune")
+                if "freeze_mode" not in tt_params:
+                    tt_params["freeze_mode"] = kwargs.get("freeze_mode", "last_layer")
+                print(f"  transfer_mode={tt_params['transfer_mode']!r}, "
+                      f"freeze_mode={tt_params.get('freeze_mode')!r}, "
+                      f"backbone={tt_params.get('backbone_path')!r}")
 
-            # Обучение модели
+            tabtransformer = DirectTabTransformer(
+                **tt_params,
+                cat_features=cat_features,
+                num_features=num_features,
+            )
+
+            # fit transformer
             tabtransformer.fit(
                 X_train=X_train,
                 y_train=y_train,
@@ -221,12 +233,16 @@ def train_ensemble_model(
             with mlflow.start_run(run_name="tabtransformer"):
                 mlflow.autolog()
 
-                # Логируем параметры
+                # log param
                 mlflow.log_params({
                     "model_type": "TabTransformer",
-                    **tt_params,
+                    **{k: v for k, v in tt_params.items()
+                       if k not in ("cat_features", "num_features", "device")},
+                    "transfer_mode": tt_params.get("transfer_mode", "pretrain"),
+                    "freeze_mode": tt_params.get("freeze_mode", "—"),
+                    "backbone_path": tt_params.get("backbone_path", "—"),
                     "cat_features_count": len(tabtransformer.cat_features_) if tabtransformer.cat_features_ else 0,
-                    "num_features_count": len(tabtransformer.num_features_) if tabtransformer.num_features_ else 0
+                    "num_features_count": len(tabtransformer.num_features_) if tabtransformer.num_features_ else 0,
                 })
 
                 metrics_dict = {
@@ -235,12 +251,12 @@ def train_ensemble_model(
                     "test_f1": f1_score(y_test, y_pred)
                 }
 
-                # Логируем метрики
+                # Log metrics
                 for name, value in metrics_dict.items():
                     mlflow.log_metric(name, value)
                     print(f"{name}: {value:.4f}")
 
-                # Сохраняем модель PyTorch
+                # save pytorch model
                 mlflow.pytorch.log_model(
                     tabtransformer.model_,
                     "tabtransformer_model",

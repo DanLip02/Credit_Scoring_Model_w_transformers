@@ -1,0 +1,273 @@
+<mxfile host="app.diagrams.net" modified="2025-04-11T00:00:00.000Z" agent="5.0" version="24.0.4" type="device">
+  <diagram name="ML Pipeline YAML to Docker" id="ml-pipeline-full">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        
+        <!-- ЗАГОЛОВОК -->
+        <mxCell id="title" value="ML Pipeline: от YAML до деплоя в Docker" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=24;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="400" y="20" width="800" height="40" as="geometry"/>
+        </mxcell>
+        
+        <!-- БЛОК 1: YAML вход -->
+        <mxCell id="yaml" value="YAML-конфигурация&#xa;(входные данные)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="600" y="80" width="300" height="50" as="geometry"/>
+        </mxcell>
+        
+        <!-- БЛОК 2: Разделение (ромб) -->
+        <mxCell id="split" value="Разделение" style="rhombus;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="650" y="160" width="200" height="80" as="geometry"/>
+        </mxcell>
+        
+        <!-- Стрелка YAML -> разделение -->
+        <mxCell id="arrow_yaml_split" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="yaml" target="split">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxcell>
+        
+        <!-- БЛОК 3: Swagger (влево от ромба) -->
+        <mxCell id="swagger" value="Swagger UI&#xa;Прямой ввод YAML" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="250" y="280" width="220" height="60" as="geometry"/>
+        </mxcell>
+        
+        <!-- БЛОК 4: Streamlit (вправо от ромба) -->
+        <mxCell id="streamlit" value="Веб-морда (Streamlit)&#xa;Загрузка YAML" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1030" y="280" width="220" height="60" as="geometry"/>
+        </mxcell>
+        
+        <!-- Стрелки от ромба к Swagger и Streamlit -->
+        <mxCell id="arrow_split_swagger" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="split" target="swagger">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="750" y="240"/>
+              <mxPoint="360" y="240"/>
+            </Array>
+          </mxGeometry>
+        </mxcell>
+        <mxCell id="arrow_split_streamlit" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="split" target="streamlit">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="750" y="240"/>
+              <mxPoint="1140" y="240"/>
+            </Array>
+          </mxGeometry>
+        </mxcell>
+        
+        <!-- БЛОК 5: FastAPI (под ромбом) -->
+        <mxCell id="fastapi" value="FastAPI&#xa;Маршрутизация запросов" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="600" y="380" width="300" height="60" as="geometry"/>
+        </mxcell>
+        
+        <!-- Стрелки от Swagger и Streamlit к FastAPI -->
+        <mxCell id="arrow_swagger_fastapi" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="swagger" target="fastapi">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="360" y="340"/>
+              <mxPoint="750" y="340"/>
+            </Array>
+          </mxGeometry>
+        </mxcell>
+        <mxCell id="arrow_streamlit_fastapi" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="streamlit" target="fastapi">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="1140" y="340"/>
+              <mxPoint="750" y="340"/>
+            </Array>
+          </mxGeometry>
+        </mxcell>
+        
+        <!-- БЛОК 6: Бэкенд с моделями -->
+        <mxCell id="backend" value="Бэкенд (расчёт)&#xa;Предобработка → Инференс → Постобработка" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="550" y="490" width="400" height="50" as="geometry"/>
+        </mxcell>
+        
+        <!-- Стрелка FastAPI -> бэкенд -->
+        <mxCell id="arrow_fastapi_backend" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="fastapi" target="backend">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxcell>
+        
+        <!-- 6 МОДЕЛЕЙ (как в твоём примере) -->
+        <!-- Модель 1: XGBoost -->
+        <mxCell id="xgb_box" value="XGBoost" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="580" width="180" height="40" as="geometry"/>
+        </mxcell>
+        <mxCell id="xgb_formula" value="L⁽ᵐ⁾ = Σ L(y, Fₘ₋₁ + hₘ) + Ω(hₘ)&#xa;Ω = γT + ½λ‖w‖²" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#666666;fontSize=10;align:center;" vertex="1" parent="1">
+          <mxGeometry x="80" y="620" width="180" height="45" as="geometry"/>
+        </mxcell>
+        <mxCell id="xgb_output" value="PD₁" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="80" y="680" width="180" height="35" as="geometry"/>
+        </mxcell>
+        
+        <!-- Модель 2: CatBoost -->
+        <mxCell id="cat_box" value="CatBoost" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="290" y="580" width="180" height="40" as="geometry"/>
+        </mxcell>
+        <mxCell id="cat_formula" value="x̂ᵢʲ = (Σ 𝟙[xₖʲ=xᵢʲ]·yₖ + αp) / (Σ𝟙 + α)&#xa;Ordered Target Encoding" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#666666;fontSize=10;align:center;" vertex="1" parent="1">
+          <mxGeometry x="290" y="620" width="180" height="45" as="geometry"/>
+        </mxcell>
+        <mxCell id="cat_output" value="PD₂" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="290" y="680" width="180" height="35" as="geometry"/>
+        </mxcell>
+        
+        <!-- Модель 3: Logistic Regression -->
+        <mxCell id="lr_box" value="Logistic Regression" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="500" y="580" width="180" height="40" as="geometry"/>
+        </mxcell>
+        <mxCell id="lr_formula" value="p̂ = σ(wᵀx + b)&#xa;L = -1/N Σ [y·log(p̂) + (1-y)·log(1-p̂)]" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#666666;fontSize=10;align:center;" vertex="1" parent="1">
+          <mxGeometry x="500" y="620" width="180" height="45" as="geometry"/>
+        </mxcell>
+        <mxCell id="lr_output" value="PD₃" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="500" y="680" width="180" height="35" as="geometry"/>
+        </mxcell>
+        
+        <!-- Модель 4: Random Forest -->
+        <mxCell id="rf_box" value="Random Forest" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="710" y="580" width="180" height="40" as="geometry"/>
+        </mxcell>
+        <mxCell id="rf_formula" value="f(x) = arg max_c [ 1/T Σ 𝟙[h_t(x)=c] ]&#xa;Ансамбль решающих деревьев" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#666666;fontSize=10;align:center;" vertex="1" parent="1">
+          <mxGeometry x="710" y="620" width="180" height="45" as="geometry"/>
+        </mxcell>
+        <mxCell id="rf_output" value="PD₄" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="710" y="680" width="180" height="35" as="geometry"/>
+        </mxcell>
+        
+        <!-- Модель 5: Gradient Boosting -->
+        <mxCell id="gb_box" value="Gradient Boosting" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="920" y="580" width="180" height="40" as="geometry"/>
+        </mxcell>
+        <mxCell id="gb_formula" value="r⁽ᵐ⁾ = y - σ(Fₘ₋₁(x))&#xa;hₘ = arg min Σ (r - h)²" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#666666;fontSize=10;align:center;" vertex="1" parent="1">
+          <mxGeometry x="920" y="620" width="180" height="45" as="geometry"/>
+        </mxcell>
+        <mxCell id="gb_output" value="PD₅" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="920" y="680" width="180" height="35" as="geometry"/>
+        </mxcell>
+        
+        <!-- Модель 6: Transformer -->
+        <mxCell id="trans_box" value="Transformer + CLS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1130" y="580" width="200" height="40" as="geometry"/>
+        </mxcell>
+        <mxCell id="trans_formula" value="Embedding → Linear → Concat → [+CLS]&#xa;→ Transformer Encoder → MLP → Sigmoid" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8f8f8;strokeColor=#666666;fontSize=10;align:center;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="620" width="200" height="45" as="geometry"/>
+        </mxcell>
+        <mxCell id="trans_output" value="PD₆" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1130" y="680" width="200" height="35" as="geometry"/>
+        </mxcell>
+        
+        <!-- Стрелки от бэкенда к моделям -->
+        <mxCell id="arrow_backend_models" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="backend" target="xgb_box">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="550" y="515"/>
+              <mxPoint="170" y="515"/>
+            </Array>
+          </mxGeometry>
+        </mxcell>
+        <mxCell id="arrow_backend_models2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="backend" target="cat_box">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="550" y="535"/>
+              <mxPoint="380" y="535"/>
+            </Array>
+          </mxGeometry>
+        </mxcell>
+        <mxCell id="arrow_backend_models3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="backend" target="lr_box">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxcell>
+        <mxCell id="arrow_backend_models4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="backend" target="rf_box">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="950" y="515"/>
+              <mxPoint="800" y="515"/>
+            </Array>
+          </mxGeometry>
+        </mxcell>
+        <mxCell id="arrow_backend_models5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="backend" target="gb_box">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="950" y="535"/>
+              <mxPoint="1010" y="535"/>
+            </Array>
+          </mxgeometry>
+        </mxcell>
+        <mxCell id="arrow_backend_models6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="backend" target="trans_box">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="950" y="555"/>
+              <mxPoint="1230" y="555"/>
+            </Array>
+          </mxgeometry>
+        </mxcell>
+        
+        <!-- Внутренние соединения моделей -->
+        <mxCell id="conn_xgb" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="xgb_box" target="xgb_formula"/>
+        <mxCell id="conn_xgb2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="xgb_formula" target="xgb_output"/>
+        <mxCell id="conn_cat" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="cat_box" target="cat_formula"/>
+        <mxCell id="conn_cat2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="cat_formula" target="cat_output"/>
+        <mxCell id="conn_lr" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="lr_box" target="lr_formula"/>
+        <mxCell id="conn_lr2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="lr_formula" target="lr_output"/>
+        <mxCell id="conn_rf" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="rf_box" target="rf_formula"/>
+        <mxCell id="conn_rf2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="rf_formula" target="rf_output"/>
+        <mxCell id="conn_gb" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="gb_box" target="gb_formula"/>
+        <mxCell id="conn_gb2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="gb_formula" target="gb_output"/>
+        <mxCell id="conn_trans" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="trans_box" target="trans_formula"/>
+        <mxCell id="conn_trans2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic" edge="1" parent="1" source="trans_formula" target="trans_output"/>
+        
+        <!-- БЛОК MLflow -->
+        <mxCell id="mlflow" value="MLflow&#xa;Логирование параметров, метрик, артефактов" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="400" y="780" width="400" height="50" as="geometry"/>
+        </mxcell>
+        
+        <!-- Стрелки от моделей к MLflow -->
+        <mxCell id="arrow_xgb_ml" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=1.5" edge="1" parent="1" source="xgb_output" target="mlflow"/>
+        <mxCell id="arrow_cat_ml" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=1.5" edge="1" parent="1" source="cat_output" target="mlflow"/>
+        <mxCell id="arrow_lr_ml" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=1.5" edge="1" parent="1" source="lr_output" target="mlflow"/>
+        <mxCell id="arrow_rf_ml" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=1.5" edge="1" parent="1" source="rf_output" target="mlflow"/>
+        <mxCell id="arrow_gb_ml" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=1.5" edge="1" parent="1" source="gb_output" target="mlflow"/>
+        <mxCell id="arrow_trans_ml" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=1.5" edge="1" parent="1" source="trans_output" target="mlflow"/>
+        
+        <!-- БЛОК PostgreSQL -->
+        <mxCell id="postgres" value="PostgreSQL&#xa;Бэкенд MLflow (хранение экспериментов)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="400" y="870" width="400" height="50" as="geometry"/>
+        </mxcell>
+        
+        <!-- Стрелка MLflow -> PostgreSQL -->
+        <mxCell id="arrow_ml_pg" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2" edge="1" parent="1" source="mlflow" target="postgres">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxcell>
+        
+        <!-- БЛОК Docker (отдельно, справа) -->
+        <mxCell id="docker" value="🐳 DOCKER&#xa;Контейнеризация и деплой" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=16;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="1100" y="800" width="250" height="70" as="geometry"/>
+        </mxcell>
+        
+        <!-- Пунктирные стрелки к Docker -->
+        <mxCell id="arrow_docker_backend" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1" source="backend" target="docker">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="950" y="515"/>
+              <mxPoint="1225" y="515"/>
+              <mxPoint="1225" y="800"/>
+            </Array>
+          </mxGeometry>
+        </mxcell>
+        <mxCell id="arrow_docker_mlflow" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1" source="mlflow" target="docker">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="800" y="805"/>
+              <mxPoint="1100" y="820"/>
+            </Array>
+          </mxGeometry>
+        </mxcell>
+        <mxCell id="arrow_docker_pg" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;endArrow=classic;strokeWidth=2;dashed=1;strokeColor=#6c8ebf" edge="1" parent="1" source="postgres" target="docker">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint="800" y="895"/>
+              <mxPoint="1100" y="860"/>
+            </Array>
+          </mxGeometry>
+        </mxcell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

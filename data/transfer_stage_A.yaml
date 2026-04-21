@@ -1,0 +1,73 @@
+run:
+  type_data: test
+  type_class: base
+  split_type: base
+  split_config:
+    params:
+      test_size: 0.15          # меньше val — больше данных на обучение
+      random_state: 42
+      stratify: true
+
+  type_class_model: transformers
+
+full_data:
+  data:
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_A\application_train_all_models_new_2.csv
+    sheet_name: "sheet_name"
+    target: "TARGET"
+    dropna: False
+
+  features:
+    numeric:
+    categorical:
+
+model:
+  model_name: tabtransformer_stage_A
+  framework: sklearn
+  ensemble:
+    type: transformers           # обычный запуск — предобучение с нуля
+    voting: soft
+    final_estimator: null
+    estimators:
+      - name: tabtransformer_pretrain
+        type: Transformers
+        params:
+          # ── Архитектура ──────────────────────────────────
+          # emb_dim должен совпадать между A, B и C
+          # менять его нельзя после предобучения
+          embed_dim: 32
+          n_heads: 4
+          n_layers: 2
+          mlp_dim: 64
+
+          # ── Регуляризация ────────────────────────────────
+          # На большом датасете dropout можно снизить
+          dropout: 0.2
+          weight_decay: 0.01
+
+          # ── Обучение ─────────────────────────────────────
+          # На 50k+ данных нужно больше эпох чем на маленьком
+          lr: 0.0005
+          batch_size: 512          # большой batch = стабильнее градиент на 50k
+          epochs: 25
+          early_stopping_patience: 10
+          warmup_ratio: 0.1
+
+          # ── Балансировка классов ─────────────────────────
+          class_weight: 'balanced'
+
+          # ── Transfer learning ────────────────────────────
+          # Stage A: обычное обучение, transfer_mode не нужен
+          # Checkpoint будет сохранён автоматически как:
+          #   models/transformers_/tabtransformer_best.pth
+          # Этот путь нужно указать в backbone_path конфига Stage B
+
+metrics:
+  base:
+    - auc
+    - ks
+    - fnr
+    - tpr
+    - fpr
+    - precision
+    - accuracy
