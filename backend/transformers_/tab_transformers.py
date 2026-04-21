@@ -1,7 +1,6 @@
 # tab_transformer.py
 import torch
 import torch.nn as nn
-from git.repo.fun import touch
 
 
 # import torch.nn.functional as F
@@ -90,3 +89,80 @@ class TabTransformerModel(nn.Module):
         pooled = h[:, 0]
         logit = self.cls(pooled).squeeze(1)  # [B]
         return torch.sigmoid(logit)
+
+    def freeze_backbone(self, mode: str = "full"):
+        """
+        freeze backbone for finetune on new dataset.
+
+        mode:
+            "full"       — freeze all transformer + cls_token
+                           learn only cat_emb, num_proj, cls (head).
+                           When dataset is small.
+
+            "last_layer" — freeze all layers of transformer (last is not).
+                           Balance between adaptation and stability.
+                           When dataset is normal.
+
+            "none"       — Full finetune.
+                           Tha task is same (big dataset).
+        """
+        if mode == "full":
+            for p in self.transformer.parameters():
+                p.requires_grad = False
+            self.cls_token.requires_grad = False
+
+        elif mode == "last_layer":
+
+            layers = list(self.transformer.encoder.layers)
+            for layer in layers[:-1]:
+                for p in layer.parameters():
+                    p.requires_grad = False
+            # Last layer and cls_token are still ready for learning
+            for p in layers[-1].parameters():
+                p.requires_grad = True
+            self.cls_token.requires_grad = True
+
+        elif mode == "none":
+            pass
+
+        else:
+            raise ValueError(f"Unknown freeze mode: {mode}. Use 'full', 'last_layer' or 'none'.")
+
+        trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
+        total = sum(p.numel() for p in self.parameters())
+        print(f"[freeze_backbone mode={mode}] "
+              f"Parameters to learn: {trainable:,} / {total:,} "
+              f"({100 * trainable / total:.1f}%)")
+
+    def unfreeze_backbone(self):
+        """Unfreeze all."""
+        for p in self.parameters():
+            p.requires_grad = True
+        print("[unfreeze_backbone] All parameters are unfrozen.")
+
+    def get_backbone_state_dict(self) -> dict:
+        """
+        Return only weights backbone (transformer + cls_token).
+        Save before transfer on new dataset.
+        Weight of cat_emb, num_proj, cls — specific, no transfer there.
+        """
+        return {
+            k: v for k, v in self.state_dict().items()
+            if k.startswith("transformer.") or k == "cls_token"
+        }
+
+    def load_backbone_state_dict(self, backbone_state: dict):
+        """
+        Load all weights backbone from dict (get_backbone_state_dict).
+        (input/head) are random — again learning.
+        """
+        missing, unexpected = self.load_state_dict(backbone_state, strict=False)
+        loaded = len(backbone_state)
+        expected_missing = [k for k in missing
+                            if any(k.startswith(p) for p in ("cat_emb.", "num_proj.", "cls."))]
+        real_missing = [k for k in missing if k not in expected_missing]
+        if real_missing:
+            print(f"[load_backbone] not found: {real_missing}")
+        print(f"[load_backbone] Load {loaded} backbone-wights. "
+              f"Input/head init again.")
+
