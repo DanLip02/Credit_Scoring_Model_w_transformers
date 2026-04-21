@@ -1,0 +1,91 @@
+<mxfile host="app.diagrams.net" modified="2025-04-11T00:00:00.000Z" agent="5.0" etag="drawio-import" version="24.0.4" type="device">
+  <diagram name="ML Pipeline" id="ml-pipeline">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Контейнер Docker (общая рамка) -->
+        <mxCell id="docker-container" value="Docker (контейнеризация)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1f5fe;strokeColor=#0288d1;fontStyle=1;fontSize=14;verticalAlign=top;align=center;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="1080" height="740" as="geometry" />
+        </mxCell>
+        
+        <!-- Блок MLflow -->
+        <mxCell id="mlflow" value="MLflow Tracking Server&#xa;— логирование метрик&#xa;— версионирование моделей&#xa;— model registry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#8e24aa;fontSize=12;align=center;" vertex="1" parent="1">
+          <mxGeometry x="100" y="100" width="220" height="100" as="geometry" />
+        </mxCell>
+        
+        <!-- PostgreSQL (бэкенд MLflow) -->
+        <mxCell id="postgres" value="PostgreSQL&#xa;(метаданные MLflow)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#f57c00;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="100" y="260" width="220" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Стрелка MLflow -> PostgreSQL -->
+        <mxCell id="arrow-ml-pg" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;" edge="1" parent="1" source="mlflow" target="postgres">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Блок тренировки моделей (CatBoost/XGBoost) -->
+        <mxCell id="training" value="Обучение моделей&#xa;CatBoost / XGBoost&#xa;scikit-learn pipelines" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#43a047;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="420" y="100" width="240" height="90" as="geometry" />
+        </mxCell>
+        
+        <!-- Стрелка training -> MLflow -->
+        <mxCell id="arrow-train-ml" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;" edge="1" parent="1" source="training" target="mlflow">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Блок EDA / визуализация -->
+        <mxCell id="eda" value="EDA &amp; Feature Engineering&#xa;Pandas / NumPy / Matplotlib&#xa;Seaborn / Plotly" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e0f7fa;strokeColor=#00acc1;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="420" y="250" width="240" height="90" as="geometry" />
+        </mxCell>
+        
+        <!-- Стрелка eda -> training -->
+        <mxCell id="arrow-eda-train" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;" edge="1" parent="1" source="eda" target="training">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Блок FastAPI -->
+        <mxCell id="fastapi" value="FastAPI (REST API)&#xa;— /predict&#xa;— /health&#xa;— Uvicorn" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8e1;strokeColor=#fbc02d;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="780" y="100" width="220" height="90" as="geometry" />
+        </mxCell>
+        
+        <!-- Стрелка MLflow -> FastAPI (загрузка модели) -->
+        <mxCell id="arrow-ml-api" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;dashed=1;" edge="1" parent="1" source="mlflow" target="fastapi">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Блок Streamlit -->
+        <mxCell id="streamlit" value="Streamlit (Web UI)&#xa;— дашборд&#xa;— тестирование модели" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#e91e63;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="780" y="260" width="220" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Стрелка FastAPI -> Streamlit (взаимодействие) -->
+        <mxCell id="arrow-api-stream" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;dashed=1;" edge="1" parent="1" source="fastapi" target="streamlit">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Блок данных (исходные данные) -->
+        <mxCell id="data" value="Исходные данные&#xa;(CSV / PostgreSQL / Kaggle)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;fillColor=#eeeeee;strokeColor=#757575;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="420" y="400" width="180" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Стрелка data -> eda -->
+        <mxCell id="arrow-data-eda" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;endArrow=classic;" edge="1" parent="1" source="data" target="eda">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Блок дополнительных библиотек -->
+        <mxCell id="libs" value="Дополнительные библиотеки:&#xa;imbalanced-learn, joblib, tqdm,&#xa;openpyxl, PyYAML, requests, kagglehub" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#9e9e9e;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="100" y="480" width="300" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- Текст-пояснение -->
+        <mxCell id="note" value="• Все компоненты упакованы в Docker-контейнеры (docker-compose)&#xa;• MLflow использует PostgreSQL как backend-хранилище&#xa;• FastAPI и Streamlit общаются через REST API&#xa;• Модель логируется в MLflow и загружается в FastAPI при старте" style="text;html=1;strokeColor=none;fillColor=none;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11;" vertex="1" parent="1">
+          <mxGeometry x="420" y="520" width="500" height="80" as="geometry" />
+        </mxCell>
+        
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
