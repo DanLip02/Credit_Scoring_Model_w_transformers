@@ -4,7 +4,7 @@ run:
   split_type: base
   split_config:
     params:
-      test_size: 0.99          # почти весь датасет идёт в тест — обучения нет
+      test_size: 0.1         # почти весь датасет идёт в тест — обучения нет
       random_state: 42
       stratify: true
 
@@ -47,17 +47,17 @@ model:
           # ── Обучение — не используется при zero_shot ──────
           lr: 0.0003
           batch_size: 128
-          epochs: 5              # игнорируется при zero_shot
+          epochs: 60        # игнорируется при zero_shot
           early_stopping_patience: 5
           warmup_ratio: 0.05
           class_weight: "balanced"
-
+          adapt_epochs: 20
           # ── Transfer: берём backbone из Stage B ──────────
-          transfer_mode: "zero_shot"   # zero_shot = никакого обучения на C
+          transfer_mode: "finetune"   # zero_shot = никакого обучения на C
           backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\mlartifacts\0\models\m-10f8a60a10794ef0b9eb524ce708a92d\artifacts\data\model.pth
 
           # freeze_mode при zero_shot не важен — всё заморожено
-          freeze_mode: "full"
+          freeze_mode: "none"
 
 metrics:
   base:

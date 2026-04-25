@@ -7,6 +7,77 @@ import pickle
 import tempfile
 
 
+class FeatureSemanticMatcher:
+    """
+    fit(X_source, col_names)  — запомнить статистики и названия фичей датасета A
+    match(X_target, col_names) — вернуть матрицу сходства [n_target, n_source]
+    """
+
+    def __init__(self, alpha: float = 0.4, beta: float = 0.6):
+        # beta > alpha — distribution is more important than name
+        self.alpha = alpha
+        self.beta = beta
+        self.source_stats = None
+        self.source_col_names = None
+        self._vectorizer = None
+        self._source_name_embs = None
+
+    def fit(self, X_source: np.ndarray, col_names: list) -> "FeatureSemanticMatcher":
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from .tab_transformers import compute_feature_stats
+
+        self.source_col_names = list(col_names)
+        self.source_stats = compute_feature_stats(X_source)
+        self._vectorizer = TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 4))
+        names = [n.lower().replace("_", " ") for n in col_names]
+        self._source_name_embs = self._vectorizer.fit_transform(names)
+        return self
+
+    def match(self, X_target: np.ndarray, target_col_names: list,
+              verbose: bool = True) -> np.ndarray:
+        from sklearn.metrics.pairwise import cosine_similarity
+        from .tab_transformers import compute_feature_stats
+
+        assert self.source_stats is not None, "Error with fit"
+
+        target_stats = compute_feature_stats(X_target)
+        target_names = [n.lower().replace("_", " ") for n in target_col_names]
+        target_embs = self._vectorizer.transform(target_names)
+
+        sem_sim = cosine_similarity(target_embs, self._source_name_embs)
+
+        n_t, n_s = len(target_col_names), len(self.source_col_names)
+        dist_sim = np.zeros((n_t, n_s), dtype=np.float32)
+        for i in range(n_t):
+            for j in range(n_s):
+                t = target_stats[i];
+                s = self.source_stats[j]
+                t_n = (t - t.mean()) / (t.std() + 1e-8)
+                s_n = (s - s.mean()) / (s.std() + 1e-8)
+                dist_sim[i, j] = 1.0 / (1.0 + np.linalg.norm(t_n - s_n))
+
+        similarity = self.alpha * sem_sim + self.beta * dist_sim
+
+        if verbose:
+            print("\n=== Feature Alignment ===")
+            for i, t_name in enumerate(target_col_names):
+                j = int(np.argmax(similarity[i]))
+                flag = "✓" if similarity[i, j] > 0.6 else "~" if similarity[i, j] > 0.3 else "✗"
+                print(f"  {flag} {t_name:25s} → {self.source_col_names[j]:25s} "
+                      f"(total={similarity[i, j]:.3f}, "
+                      f"sem={sem_sim[i, j]:.3f}, dist={dist_sim[i, j]:.3f})")
+            print()
+
+        return similarity.astype(np.float32)
+
+    def save(self, path: str):
+        with open(path, "wb") as f: pickle.dump(self, f)
+
+    @classmethod
+    def load(cls, path: str) -> "FeatureSemanticMatcher":
+        with open(path, "rb") as f: return pickle.load(f)
+
+
 class DirectTabTransformer:
     """class for using custom TabTransformer without sklearn wrapper"""
 
@@ -216,13 +287,19 @@ class DirectTabTransformer:
         self.model_.eval()
         all_preds = []
 
+        n_batches = len(loader)
+        print(f"[predict_proba] {len(dataset)} rows, {n_batches} batch...")
+
         with torch.no_grad():
-            for batch in loader:
+            for i, batch in enumerate(loader):
 
                 cat = batch["cat"].to(self.device_) if "cat" in batch else None
                 num = batch["num"].to(self.device_) if "num" in batch else None
                 preds = self.model_(cat, num)
                 all_preds.append(preds.cpu().numpy())
+
+                if (i + 1) % max(1, n_batches // 5) == 0:
+                    print(f"[predict_proba] {i + 1}/{n_batches} batch")
 
         probas = np.concatenate(all_preds)
         return np.column_stack([1 - probas, probas])
