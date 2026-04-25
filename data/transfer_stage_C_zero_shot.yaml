@@ -1,0 +1,81 @@
+run:
+  type_data: test
+  type_class: base
+  split_type: base
+  split_config:
+    params:
+      test_size: 0.95        # 95% в тест — модель видит только 5% для инициализации
+      random_state: 42
+      stratify: true
+
+  type_class_model: transformers
+
+full_data:
+  data:
+    path: "C:/Users/Danch/PycharmProjects/Credit_Scoring_Model_w_transformers/data/Dataset_C/train_prepared.csv"
+    target: "default_flg"
+    dropna: False
+    # маппер не нужен — таргет уже 0/1
+
+  features:
+    numeric:
+      - age
+      - Score_bki
+      - log_income
+      - log_appl_rej
+      - log_out_req
+      - region_rating_ord
+      - home_address_cd
+      - work_address_cd
+      - SNA
+      - first_time_cd
+      - good_work_flg
+      - app_month
+      - app_quarter
+    categorical:
+      - education_cd
+      - gender_cd
+      - car_own_flg
+      - car_type_flg
+      - Air_flg
+
+model:
+  model_name: tabtransformer_zeroshot_train_prepared
+  framework: sklearn
+  ensemble:
+    type: transformers_transfer
+    voting: soft
+    final_estimator: null
+    estimators:
+      - name: tabtransformer_zeroshot
+        type: Transformers
+        params:
+          # ── Архитектура — должна совпадать с Stage A и B ──
+          embed_dim: 32
+          n_heads: 4
+          n_layers: 2
+          mlp_dim: 64
+          dropout: 0.3
+          weight_decay: 0.02
+
+          lr: 0.0003
+          batch_size: 256
+          epochs: 1              # не используется при zero_shot
+          early_stopping_patience: 5
+          warmup_ratio: 0.05
+          class_weight: "balanced"
+
+          # ── Zero-shot: берём backbone из Stage B ──────────
+          transfer_mode: "zero_shot"
+          backbone_path: "C:/Users/Danch/PycharmProjects/Credit_Scoring_Model_w_transformers/models/transformers_/tabtransformer_finetune_last_layer.pth"
+          freeze_mode: "full"
+
+metrics:
+  base:
+    - auc
+    - ks
+    - fnr
+    - tpr
+    - fpr
+    - precision
+    - accuracy

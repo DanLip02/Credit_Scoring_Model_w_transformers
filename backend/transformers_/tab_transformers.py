@@ -1,9 +1,59 @@
 # tab_transformer.py
 import torch
 import torch.nn as nn
-
-
+from scipy import stats as scipy_stats
+import numpy as np
 # import torch.nn.functional as F
+
+
+def compute_feature_stats(X: np.ndarray) -> np.ndarray:
+    """
+    Input:  X [N, n_features]
+    Output: stats [n_features, 8] — [mean, std, skew, kurt, min, max, median, iqr]
+    """
+    try:
+        use_scipy = True
+    except ImportError:
+        use_scipy = False
+
+    result = []
+    for i in range(X.shape[1]):
+        col = X[:, i].astype(np.float32)
+        col_clean = col[~np.isnan(col)]
+        if len(col_clean) == 0:
+            col_clean = np.zeros(1, dtype=np.float32)
+        q75, q25 = np.percentile(col_clean, [75, 25])
+        skew = float(scipy_stats.skew(col_clean)) if use_scipy else 0.0
+        kurt = float(scipy_stats.kurtosis(col_clean)) if use_scipy else 0.0
+        result.append([
+            float(np.mean(col_clean)),
+            float(np.std(col_clean) + 1e-8),
+            skew, kurt,
+            float(np.min(col_clean)),
+            float(np.max(col_clean)),
+            float(np.median(col_clean)),
+            float(q75 - q25),
+        ])
+    return np.array(result, dtype=np.float32)  # [n_features, 8]
+
+
+class FeatureStatEmbedder(nn.Module):
+    """
+    Проецирует статистики фичи [8] → [emb_dim].
+    Using in stat_based_init for smarter init. of  NumProj/CatEmbeddings.
+    """
+
+    def __init__(self, emb_dim: int, n_stats: int = 8):
+        super().__init__()
+        self.proj = nn.Sequential(
+            nn.Linear(n_stats, emb_dim),
+            nn.LayerNorm(emb_dim),
+            nn.GELU(),
+            nn.Linear(emb_dim, emb_dim),
+        )
+
+    def forward(self, stats: torch.Tensor) -> torch.Tensor:
+        return self.proj(stats)  # [n_features, emb_dim]
 
 class CatEmbeddings(nn.Module):
     def __init__(self, cardinalities, emb_dim):
