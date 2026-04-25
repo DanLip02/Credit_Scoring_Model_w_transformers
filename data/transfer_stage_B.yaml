@@ -49,7 +49,7 @@ model:
           # ── Обучение ─────────────────────────────────────
           # lr меньше чем в Stage A — backbone уже обучен,
           # не хотим сломать выученные представления
-          lr: 0.0003
+          lr: 0.0005
           batch_size: 128        # меньше батч = чаще обновления, важно на малых данных
           epochs: 40
           early_stopping_patience: 10
@@ -62,7 +62,7 @@ model:
 
           # Путь к чекпойнту Stage A
           # Подставь актуальный абсолютный путь после запуска Stage A
-          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\mlartifacts\0\models\m-68de1aca195d43f5a6cf58ae9e5a84cf\artifacts\data\model.pth
+          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_best.pth
 
           # freeze_mode определяет что заморозить при файнтюне:
           #
