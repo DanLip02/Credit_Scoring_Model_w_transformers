@@ -214,8 +214,8 @@ def train_ensemble_model(
                 y_val=y_val
             )
 
-            y_pred = tabtransformer.predict(X_test)
             y_prob = tabtransformer.predict_proba(X_test)[:, 1]
+            y_pred = (y_prob >= 0.5).astype(int)
 
             from backend.metrics import find_optimal_threshold
 

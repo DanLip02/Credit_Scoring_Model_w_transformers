@@ -2,6 +2,7 @@
 import torch
 import numpy as np
 import pandas as pd
+import os
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 import pickle
 import tempfile
@@ -22,15 +23,33 @@ class FeatureSemanticMatcher:
         self._vectorizer = None
         self._source_name_embs = None
 
+    #todo add BERT for semantic.
     def fit(self, X_source: np.ndarray, col_names: list) -> "FeatureSemanticMatcher":
-        from sklearn.feature_extraction.text import TfidfVectorizer
         from .tab_transformers import compute_feature_stats
 
         self.source_col_names = list(col_names)
         self.source_stats = compute_feature_stats(X_source)
-        self._vectorizer = TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 4))
+
         names = [n.lower().replace("_", " ") for n in col_names]
-        self._source_name_embs = self._vectorizer.fit_transform(names)
+
+        try:
+            from sentence_transformers import SentenceTransformer
+            print("[FeatureSemanticMatcher] BERT (multilingual)...")
+            self._bert = SentenceTransformer(
+                "paraphrase-multilingual-MiniLM-L12-v2"
+            )
+            self._source_name_embs = self._bert.encode(
+                names, show_progress_bar=False
+            )  # [n_features, 384]
+            self._use_bert = True
+        except ImportError:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            print("[FeatureSemanticMatcher] sentence-transformers не установлен, "
+                  "используем TF-IDF. Для лучшего качества: pip install sentence-transformers")
+            self._vectorizer = TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 4))
+            self._source_name_embs = self._vectorizer.fit_transform(names)
+            self._use_bert = False
+
         return self
 
     def match(self, X_target: np.ndarray, target_col_names: list,
@@ -42,9 +61,16 @@ class FeatureSemanticMatcher:
 
         target_stats = compute_feature_stats(X_target)
         target_names = [n.lower().replace("_", " ") for n in target_col_names]
-        target_embs = self._vectorizer.transform(target_names)
 
-        sem_sim = cosine_similarity(target_embs, self._source_name_embs)
+        # Семантическое сходство: BERT или TF-IDF
+        if self._use_bert:
+            target_embs = self._bert.encode(
+                target_names, show_progress_bar=False
+            )  # [n_target, 384]
+            sem_sim = cosine_similarity(target_embs, self._source_name_embs)
+        else:
+            target_embs = self._vectorizer.transform(target_names)
+            sem_sim = cosine_similarity(target_embs, self._source_name_embs)
 
         n_t, n_s = len(target_col_names), len(self.source_col_names)
         dist_sim = np.zeros((n_t, n_s), dtype=np.float32)
@@ -70,6 +96,12 @@ class FeatureSemanticMatcher:
 
         return similarity.astype(np.float32)
 
+    def forward(self, stats: torch.Tensor) -> torch.Tensor:
+        stats_norm = (stats - stats.mean(dim=-1, keepdim=True)) / (
+                stats.std(dim=-1, keepdim=True) + 1e-8
+        )
+        return self.proj(stats_norm)
+
     def save(self, path: str):
         with open(path, "wb") as f: pickle.dump(self, f)
 
@@ -93,7 +125,8 @@ class DirectTabTransformer:
         self.transfer_mode_ = params.get("transfer_mode", None)
         self.backbone_path_ = params.get("backbone_path", None)
         self.freeze_mode_ = params.get("freeze_mode", "last_layer")  # "full"|"last_layer"|"none"
-        self.adapt_epochs_ = params.get("adapt_epochs", 5)
+        self.adapt_epochs_ = params.get("adapt_epochs", 5),
+
 
     def prepare_data(self, X, y=None, X_val=None, y_val=None, fit=False):
         """preparing data for TabTransformer"""
@@ -198,12 +231,60 @@ class DirectTabTransformer:
             "weight_decay": self.params.get("weight_decay", 0.01),
             "early_stopping_patience": self.params.get("early_stopping_patience", 10),
             "warmup_ratio": self.params.get("warmup_ratio", 0.1),
+            "lambda_align": self.params.get("lambda_align", 0.0)
         }
 
         y_train_arr = y_train.values if hasattr(y_train, "values") else y_train
         y_val_arr = y_val.values if hasattr(y_val, "values") else y_val
 
         print("cardinalities: ", self.cardinalities_)
+
+        if self.transfer_mode_ in (None, "pretrain", "finetune"):
+            # Fit matcher on current dataset
+            self.matcher_ = FeatureSemanticMatcher()
+            num_for_match = num_train if num_train is not None else cat_train
+            col_names = (self.num_features_ or []) + (self.cat_features_ or [])
+            if num_for_match is not None and col_names:
+                self.matcher_.fit(num_for_match, col_names)
+
+                #todo check if finetune mode is activated because
+                # it resave with new features and forget about backbone
+
+
+                # if self.backbone_path_:
+                #     matcher_path = self.backbone_path_.replace(".pth", "_matcher.pkl")
+                # else:
+                #     matcher_path = os.path.join(
+                #         os.path.dirname(os.path.abspath(__file__)),
+                #         "..", "..", "models", "transformers_", "matcher.pkl"
+                #     )
+
+                if self.backbone_path_:
+                    if self.transfer_mode_ == "finetune":
+                        matcher_path = self.backbone_path_.replace(".pth", "_stageB_matcher.pkl")
+                    else:
+                        matcher_path = self.backbone_path_.replace(".pth", "_matcher.pkl")
+                else:
+                    matcher_path = os.path.join(
+                        os.path.dirname(os.path.abspath(__file__)),
+                        "..", "..", "models", "transformers_", "matcher.pkl"
+                    )
+
+                self.matcher_.save(matcher_path)
+                print(f"[Matcher] saved to: {matcher_path}")
+
+        elif self.transfer_mode_ in ("zero_shot", "proj_adapt"):
+            # load matcher из Stage A/B
+            if self.backbone_path_:
+                matcher_path = self.backbone_path_.replace(".pth", "_matcher.pkl")
+                if os.path.exists(matcher_path):
+                    self.matcher_ = FeatureSemanticMatcher.load(matcher_path)
+                    num_for_match = num_train if num_train is not None else cat_train
+                    col_names = (self.num_features_ or []) + (self.cat_features_ or [])
+                    if num_for_match is not None and col_names:
+                        self.matcher_.match(num_for_match, col_names, verbose=True)
+                else:
+                    print(f"[Matcher] File was not found: {matcher_path}")
 
         if self.transfer_mode_ in (None, "pretrain"):
             # Stage A — обычное обучение с нуля
@@ -220,6 +301,19 @@ class DirectTabTransformer:
         elif self.transfer_mode_ == "finetune":
             # Stage B — файнтюн с переносом backbone
             assert self.backbone_path_,  "transfer_mode='finetune' требует backbone_path в параметрах"
+            matcher_path = self.backbone_path_.replace(".pth", "_matcher.pkl")
+
+            if os.path.exists(matcher_path):
+                matcher_a = FeatureSemanticMatcher.load(matcher_path)
+
+                print(f"[Matcher] source_cols ({len(matcher_a.source_col_names)}): {matcher_a.source_col_names}")
+                print(f"[Matcher] source_stats shape: {matcher_a.source_stats.shape}")
+
+                col_names_b = (self.num_features_ or []) + (self.cat_features_ or [])
+                num_for_match = num_train if num_train is not None else cat_train
+                print("\n=== Feature mapping: Stage A → Stage B ===")
+                matcher_a.match(num_for_match, col_names_b, verbose=True)
+
             self.model_, _ = finetune_tabtransformer(
                 cat_train=cat_train, num_train=num_train,
                 y_train=y_train_arr,

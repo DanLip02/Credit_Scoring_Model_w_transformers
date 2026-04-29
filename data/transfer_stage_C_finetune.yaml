@@ -1,0 +1,75 @@
+run:
+  type_data: test
+  type_class: base
+  split_type: base
+  split_config:
+    params:
+      test_size: 0.3         # 70% train, 30% test — честный сплит для файнтюна
+      random_state: 42
+      stratify: true
+
+  type_class_model: transformers
+
+full_data:
+  data:
+    path: "C:/Users/Danch/PycharmProjects/Credit_Scoring_Model_w_transformers/data/Dataset_C/credit_scoring_train.csv"
+    target: "target"
+    dropna: True
+    mapper:
+      1: 0
+      2: 1
+
+  features:
+    numeric:
+    categorical:
+
+model:
+  model_name: tabtransformer_stage_C_finetune
+  framework: sklearn
+  ensemble:
+    type: transformers_transfer
+    voting: soft
+    final_estimator: null
+    estimators:
+      - name: tabtransformer_finetune_german
+        type: Transformers
+        params:
+          # ── Архитектура — совпадает с A и B ──────────────
+          embed_dim: 32
+          n_heads: 4
+          n_layers: 2
+          mlp_dim: 64
+
+          # ── Регуляризация ─────────────────────────────────
+          # German Credit маленький (1k) → высокий dropout
+          dropout: 0.3
+          weight_decay: 0.02
+
+          # ── Обучение ──────────────────────────────────────
+          lr: 0.0003
+          batch_size: 64         # маленький батч — датасет маленький
+          epochs: 60
+          early_stopping_patience: 15
+          warmup_ratio: 0.05
+          class_weight: "balanced"
+
+          # ── Alignment Loss ────────────────────────────────
+          lambda_align: 0.2
+
+          # ── Transfer: backbone из Stage B ────────────────
+          transfer_mode: "finetune"
+          backbone_path: "C:/Users/Danch/PycharmProjects/Credit_Scoring_Model_w_transformers/models/transformers_/tabtransformer_finetune_last_layer.pth"
+
+          # none — датасет маленький, всё должно адаптироваться
+          # last_layer — если хочешь сохранить больше знаний из B
+          freeze_mode: "none"
+
+metrics:
+  base:
+    - auc
+    - ks
+    - fnr
+    - tpr
+    - fpr
+    - precision
+    - accuracy
