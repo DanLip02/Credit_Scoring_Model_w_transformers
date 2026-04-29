@@ -135,9 +135,11 @@ class TabTransformerModel(nn.Module):
         cls = self.cls_token.expand(x.size(0), -1, -1)
         x = torch.cat([cls, x], dim=1)
         h = self.transformer(x)  # [B, seq_len, D]
+
         # pooled = h.mean(dim=1)  # [B, D]
         pooled = h[:, 0]
         logit = self.cls(pooled).squeeze(1)  # [B]
+
         return torch.sigmoid(logit)
 
     def freeze_backbone(self, mode: str = "full"):

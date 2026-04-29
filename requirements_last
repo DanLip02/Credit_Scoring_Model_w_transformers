@@ -56,3 +56,6 @@ python-multipart==0.0.21
 streamlit==1.52.2
 mlflow==3.7.0
 psycopg2-binary==2.9.11
+
+
+huggingface_hub

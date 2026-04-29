@@ -56,6 +56,11 @@ def train_loop(model, loader, opt, loss_fn, device):
         out = model(cat, num)
         loss = loss_fn(out, y)
         loss.backward()
+
+        #todo after finetune with transfer learning NaN in preds_val -
+        # after this should not be Nan
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+
         opt.step()
         total_loss += loss.item() * len(y)
     return total_loss / len(loader.dataset)
@@ -68,7 +73,19 @@ def eval_loop(model, loader, device):
             cat = batch["cat"].to(device) if "cat" in batch else None
             num = batch["num"].to(device) if "num" in batch else None
             y = batch["y"].to(device)
+
+            #todo check why NaN in transfer learning:
+            if num is not None:
+                print(f"num NaN: {torch.isnan(num).sum().item()}, inf: {torch.isinf(num).sum().item()}")
+            if cat is not None:
+                print(f"cat NaN: {torch.isnan(cat.float()).sum().item()}")
+
             out = model(cat, num)
+
+            # print(f"out NaN: {torch.isnan(out).sum().item()}")
+            # print(f"out sample: {out[:5]}")
+            # break
+
             ys.append(y.cpu().numpy())
             preds.append(out.cpu().numpy())
     ys = np.concatenate(ys)
@@ -77,7 +94,7 @@ def eval_loop(model, loader, device):
 
 def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, cardinalities, TT, device="cpu"):
     np.random.seed(42)
-
+    print(TT)
     class_weight = TT.get("class_weight", None)
     weight_decay = TT.get("weight_decay", 0.01)
 
@@ -94,6 +111,11 @@ def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, c
             from sklearn.utils.class_weight import compute_class_weight
             weights = compute_class_weight('balanced', classes=np.unique(y_train), y=y_train)
             pos_weight = torch.tensor([weights[1] / weights[0]], dtype=torch.float32).to(device)
+
+            print(f"class_weight param = {class_weight!r}")
+            print(f"pos_weight value   = {pos_weight.item():.4f}")
+            print(f"y_train counts     = {np.bincount(y_train.astype(int))}")
+
             loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
         else:
             loss_fn = nn.BCEWithLogitsLoss()
@@ -251,6 +273,11 @@ def stat_based_init(model, num_data=None, cat_data=None, device="cpu"):
         if num_data is not None and model.num_proj is not None:
             stats = compute_feature_stats(num_data)  # [n_num, 8]
             stats_t = torch.tensor(stats, dtype=torch.float32).to(device)
+
+            mean = stats_t.mean(dim=0, keepdim=True)
+            std = stats_t.std(dim=0, keepdim=True) + 1e-8
+            stats_t = (stats_t - mean) / std
+
             for i, proj_layer in enumerate(model.num_proj.proj):
                 if i >= len(stats):
                     break
@@ -262,6 +289,11 @@ def stat_based_init(model, num_data=None, cat_data=None, device="cpu"):
         if cat_data is not None and len(model.cat_emb.embs) > 0:
             stats = compute_feature_stats(cat_data.astype(np.float32))  # [n_cat, 8]
             stats_t = torch.tensor(stats, dtype=torch.float32).to(device)
+
+            mean = stats_t.mean(dim=0, keepdim=True)
+            std = stats_t.std(dim=0, keepdim=True) + 1e-8
+            stats_t = (stats_t - mean) / std
+
             for i, emb_layer in enumerate(model.cat_emb.embs):
                 if i >= len(stats):
                     break
@@ -330,6 +362,18 @@ def finetune_tabtransformer(
     # Here is init of input layers based on statistics of features
     stat_based_init(model, num_data=num_train, cat_data=cat_train, device=device)
 
+    with torch.no_grad():
+        for proj in model.num_proj.proj:
+            if torch.isnan(proj.weight).any():
+                nn.init.xavier_uniform_(proj.weight)
+                nn.init.zeros_(proj.bias)
+
+        for emb in model.cat_emb.embs:
+            if torch.isnan(emb.weight).any():
+                nn.init.normal_(emb.weight, mean=0.0, std=0.01)
+
+    print("[init_check] Weights checked, NaN replaced with xavier/normal init")
+
     # freeze necessary layers
     model.freeze_backbone(mode=freeze_mode)
 
@@ -372,6 +416,8 @@ def finetune_tabtransformer(
 
     source_embs = None
     lambda_align = TT.get("lambda_align", 0.05)
+    print("Lambda align: ", lambda_align)
+
     emb_path = backbone_checkpoint.replace(".pth", "_feature_embs.pth")
     if os.path.exists(emb_path) and lambda_align > 0:
         try:

@@ -12,9 +12,9 @@ run:
 
 full_data:
   data:
-    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_A\application_train_all_models_new_2.csv
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_B\train_baseline_ML.csv
     sheet_name: "sheet_name"
-    target: "TARGET"
+    target: "SeriousDlqin2yrs"
     dropna: False
 
   features:

@@ -13,9 +13,9 @@ run:
 full_data:
   data:
     # !! Заменить на путь к датасету B (маленький, другие фичи)
-    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_B\train_baseline_ML.csv
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_A\application_train_all_models_new_2.csv
     sheet_name: "sheet_name"
-    target: "SeriousDlqin2yrs"             # имя целевой колонки датасета B
+    target: "TARGET"             # имя целевой колонки датасета B
     dropna: False
 
   features:
@@ -49,11 +49,12 @@ model:
           # ── Обучение ─────────────────────────────────────
           # lr меньше чем в Stage A — backbone уже обучен,
           # не хотим сломать выученные представления
-          lr: 0.0005
-          batch_size: 128        # меньше батч = чаще обновления, важно на малых данных
+          lr: 0.00001
+          batch_size: 512        # меньше батч = чаще обновления, важно на малых данных
           epochs: 40
           early_stopping_patience: 10
-          warmup_ratio: 0.05     # короче прогрев — мы уже в хорошей точке
+          warmup_ratio: 0.2    # короче прогрев — мы уже в хорошей точке
+          lambda_align: 0.0
 
           class_weight: 'balanced'
 
@@ -82,7 +83,7 @@ model:
           #                  → используй если B достаточно большой (5k+)
           #                  → риск: может «забыть» знания из A
           #
-          freeze_mode: 'last_layer'   # << менять для сравнения вариантов
+          freeze_mode: 'none'   # << менять для сравнения вариантов
 
 metrics:
   base:
