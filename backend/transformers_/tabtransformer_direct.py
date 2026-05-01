@@ -14,7 +14,7 @@ class FeatureSemanticMatcher:
     match(X_target, col_names) — вернуть матрицу сходства [n_target, n_source]
     """
 
-    def __init__(self, alpha: float = 0.4, beta: float = 0.6):
+    def __init__(self, alpha: float = 0.7, beta: float = 0.3):
         # beta > alpha — distribution is more important than name
         self.alpha = alpha
         self.beta = beta
@@ -74,15 +74,23 @@ class FeatureSemanticMatcher:
 
         n_t, n_s = len(target_col_names), len(self.source_col_names)
         dist_sim = np.zeros((n_t, n_s), dtype=np.float32)
+        n_t_num = len(target_stats)  # только числовые (34)
+
         for i in range(n_t):
             for j in range(n_s):
-                t = target_stats[i];
-                s = self.source_stats[j]
-                t_n = (t - t.mean()) / (t.std() + 1e-8)
-                s_n = (s - s.mean()) / (s.std() + 1e-8)
-                dist_sim[i, j] = 1.0 / (1.0 + np.linalg.norm(t_n - s_n))
+                # Только числовые фичи с обеих сторон
+                if i < n_t_num and self.source_stats[j].any():
+                    t = target_stats[i]
+                    s = self.source_stats[j]
+                    t_n = (t - t.mean()) / (t.std() + 1e-8)
+                    s_n = (s - s.mean()) / (s.std() + 1e-8)
+                    val = 1.0 / (1.0 + np.linalg.norm(t_n - s_n))
+                    dist_sim[i, j] = 0.0 if np.isnan(val) else val  # ← защита от NaN
 
+        # Для категориальных target фичей — только семантика
         similarity = self.alpha * sem_sim + self.beta * dist_sim
+        for i in range(n_t_num, n_t):  # только cat target фичи
+            similarity[i] = sem_sim[i]  # total = только BERT, без dist
 
         if verbose:
             print("\n=== Feature Alignment ===")
@@ -125,7 +133,7 @@ class DirectTabTransformer:
         self.transfer_mode_ = params.get("transfer_mode", None)
         self.backbone_path_ = params.get("backbone_path", None)
         self.freeze_mode_ = params.get("freeze_mode", "last_layer")  # "full"|"last_layer"|"none"
-        self.adapt_epochs_ = params.get("adapt_epochs", 5),
+        self.adapt_epochs_ = params.get("adapt_epochs", 5)
 
 
     def prepare_data(self, X, y=None, X_val=None, y_val=None, fit=False):
@@ -243,9 +251,30 @@ class DirectTabTransformer:
             # Fit matcher on current dataset
             self.matcher_ = FeatureSemanticMatcher()
             num_for_match = num_train if num_train is not None else cat_train
-            col_names = (self.num_features_ or []) + (self.cat_features_ or [])
-            if num_for_match is not None and col_names:
-                self.matcher_.fit(num_for_match, col_names)
+            # col_names = (self.num_features_ or []) + (self.cat_features_ or [])
+            self.matcher_ = FeatureSemanticMatcher()
+            num_col_names = [c for c in (self.num_features_ or []) if c != 'Unnamed: 0']
+            cat_col_names = self.cat_features_ or []
+
+            if num_for_match is not None and num_col_names:
+                self.matcher_.fit(num_for_match, num_col_names)
+
+                # Категориальные — только BERT, stats = zeros
+                if cat_col_names and self.matcher_._use_bert:
+                    cat_names = [n.lower().replace("_", " ") for n in cat_col_names]
+                    cat_embs = self.matcher_._bert.encode(
+                        cat_names, show_progress_bar=False)
+
+                    # Добавляем к source: имена + нулевые статистики + BERT
+                    self.matcher_.source_col_names += cat_col_names
+                    self.matcher_.source_stats = np.vstack([
+                        self.matcher_.source_stats,
+                        np.zeros((len(cat_col_names), 8), dtype=np.float32)  # нули для cat
+                    ])
+                    self.matcher_._source_name_embs = np.vstack([
+                        self.matcher_._source_name_embs,
+                        cat_embs
+                    ])
 
                 #todo check if finetune mode is activated because
                 # it resave with new features and forget about backbone
@@ -279,6 +308,8 @@ class DirectTabTransformer:
                 matcher_path = self.backbone_path_.replace(".pth", "_matcher.pkl")
                 if os.path.exists(matcher_path):
                     self.matcher_ = FeatureSemanticMatcher.load(matcher_path)
+                    self.matcher_.alpha = 0.7
+                    self.matcher_.beta = 0.3
                     num_for_match = num_train if num_train is not None else cat_train
                     col_names = (self.num_features_ or []) + (self.cat_features_ or [])
                     if num_for_match is not None and col_names:
