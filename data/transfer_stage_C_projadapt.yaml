@@ -12,7 +12,7 @@ run:
 
 full_data:
   data:
-    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_C\credit_scoring_train.csv
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_C\credit_scoring_full_raw.csv
     sheet_name: "sheet_name"
     target: "target"
     dropna: False
@@ -32,19 +32,14 @@ model:
       - name: tabtransformer_projadapt
         type: Transformers
         params:
-          # ── Архитектура — должна совпадать со Stage A ────
+          # Архитектура должна совпадать со Stage A
           embed_dim: 32
           n_heads: 4
           n_layers: 2
           mlp_dim: 64
 
-          # ── Регуляризация ────────────────────────────────
           dropout: 0.2
           weight_decay: 0.01
-
-          # ── Обучение ─────────────────────────────────────
-          # proj_adapt: backbone заморожен
-          # обучаются только cat_emb + num_proj + cls head
           lr: 0.0003            # чуть выше чем finetune — учим только входы
           batch_size: 512
           epochs: 15            # небольшой адаптационный этап
@@ -53,15 +48,9 @@ model:
           lambda_align: 0.0
 
           class_weight: 'balanced'
-
-          # ── Transfer: proj_adapt ─────────────────────────
-          # Backbone заморожен, адаптируем только входной слой
-          # Это лучше zero_shot — модель хотя бы учит проекцию фичей
           transfer_mode: 'proj_adapt'
 
           backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_finetune_none.pth
-
-          # adapt_epochs используется внутри adapt_to_new_dataset
           adapt_epochs: 15
 
 metrics:
