@@ -1,0 +1,70 @@
+run:
+  type_data: test
+  type_class: base
+  split_type: base
+  split_config:
+    params:
+      test_size: 0.05
+      random_state: 42
+      stratify: true
+
+  type_class_model: transformers
+
+full_data:
+  data:
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\taiwan_cc_full.csv
+    sheet_name: "sheet_name"
+    target: "target"
+    dropna: False
+
+  features:
+    numeric:
+    categorical:
+
+model:
+  model_name: tabtransformer_stage_E_taiwan_zeroshot
+  framework: sklearn
+  ensemble:
+    type: transformers_transfer
+    voting: soft
+    final_estimator: null
+    estimators:
+      - name: tabtransformer_taiwan_zeroshot
+        type: Transformers
+        params:
+          # ── Архитектура — совпадает со Stage A/B/C ───────
+          embed_dim: 32
+          n_heads: 4
+          n_layers: 2
+          mlp_dim: 64
+
+          # ── Регуляризация ────────────────────────────────
+          dropout: 0.2
+          weight_decay: 0.01
+
+          # ── Обучение — zero_shot не обучается ────────────
+          lr: 0.0003
+          batch_size: 512
+          epochs: 1
+          early_stopping_patience: 5
+          warmup_ratio: 0.0
+          lambda_align: 0.0
+          adapt_epochs: 0
+
+          class_weight: 'balanced'
+
+          # ── Transfer: zero_shot ──────────────────────────
+          # Backbone загружается, inference без обучения
+          transfer_mode: 'zero_shot'
+          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_finetune_none.pth
+          freeze_mode: 'full'
+
+metrics:
+  base:
+    - auc
+    - ks
+    - fnr
+    - tpr
+    - fpr
+    - precision
+    - accuracy

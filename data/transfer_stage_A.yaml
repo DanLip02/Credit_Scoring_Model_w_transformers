@@ -4,7 +4,7 @@ run:
   split_type: base
   split_config:
     params:
-      test_size: 0.15          # меньше val — больше данных на обучение
+      test_size: 0.2          # меньше val — больше данных на обучение
       random_state: 42
       stratify: true
 
@@ -12,10 +12,13 @@ run:
 
 full_data:
   data:
-    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_C\train_prepared.csv
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_A\application_train_all_models_final_2.csv
     sheet_name: "sheet_name"
-    target: "default_flg"
+    target: "TARGET"
     dropna: False
+    drop_columns:
+      - "SK_ID_CURR"
+      - "Unnamed: 0"
 
   features:
     numeric:
@@ -35,23 +38,23 @@ model:
           # ── Архитектура ──────────────────────────────────
           # emb_dim должен совпадать между A, B и C
           # менять его нельзя после предобучения
-          embed_dim: 32
-          n_heads: 4
-          n_layers: 2
-          mlp_dim: 64
+          embed_dim: 64
+          n_heads: 8
+          n_layers: 4
+          mlp_dim: 256
 
           # ── Регуляризация ────────────────────────────────
           # На большом датасете dropout можно снизить
-          dropout: 0.2
+          dropout: 0.15
           weight_decay: 0.01
 
           # ── Обучение ─────────────────────────────────────
           # На 50k+ данных нужно больше эпох чем на маленьком
-          lr: 0.0005
+          lr: 0.001
           batch_size: 512          # большой batch = стабильнее градиент на 50k
-          epochs: 25
+          epochs: 30
           early_stopping_patience: 10
-          warmup_ratio: 0.1
+          warmup_ratio: 0.05
 
           # ── Балансировка классов ─────────────────────────
           class_weight: 'balanced'

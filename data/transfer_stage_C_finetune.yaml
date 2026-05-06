@@ -12,12 +12,12 @@ run:
 
 full_data:
   data:
-    path: "C:/Users/Danch/PycharmProjects/Credit_Scoring_Model_w_transformers/data/Dataset_C/credit_scoring_train.csv"
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_C\credit_scoring_full_raw.csv
+    sheet_name: "sheet_name"
     target: "target"
-    dropna: True
-    mapper:
-      1: 0
-      2: 1
+    dropna: False
+    drop_columns:
+      - "Customer_ID"
 
   features:
     numeric:
@@ -35,10 +35,10 @@ model:
         type: Transformers
         params:
           # ── Архитектура — совпадает с A и B ──────────────
-          embed_dim: 32
-          n_heads: 4
-          n_layers: 2
-          mlp_dim: 64
+          embed_dim: 64
+          n_heads: 8
+          n_layers: 4
+          mlp_dim: 256
 
           # ── Регуляризация ─────────────────────────────────
           # German Credit маленький (1k) → высокий dropout
@@ -58,7 +58,7 @@ model:
 
           # ── Transfer: backbone из Stage B ────────────────
           transfer_mode: "finetune"
-          backbone_path: "C:/Users/Danch/PycharmProjects/Credit_Scoring_Model_w_transformers/models/transformers_/tabtransformer_finetune_last_layer.pth"
+          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_finetune_none.pth
 
           # none — датасет маленький, всё должно адаптироваться
           # last_layer — если хочешь сохранить больше знаний из B

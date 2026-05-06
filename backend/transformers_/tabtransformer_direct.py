@@ -6,7 +6,9 @@ import os
 from sklearn.preprocessing import OrdinalEncoder, StandardScaler
 import pickle
 import tempfile
-
+from sentence_transformers import SentenceTransformer
+from .tab_transformers import compute_feature_stats, _normalize_for_stats
+import time
 
 class FeatureSemanticMatcher:
     """
@@ -14,7 +16,7 @@ class FeatureSemanticMatcher:
     match(X_target, col_names) — вернуть матрицу сходства [n_target, n_source]
     """
 
-    def __init__(self, alpha: float = 0.7, beta: float = 0.3):
+    def __init__(self, alpha: float = 0.8, beta: float = 0.2, model_name="paraphrase-multilingual-MiniLM-L12-v2"):
         # beta > alpha — distribution is more important than name
         self.alpha = alpha
         self.beta = beta
@@ -22,18 +24,21 @@ class FeatureSemanticMatcher:
         self.source_col_names = None
         self._vectorizer = None
         self._source_name_embs = None
+        self._bert = SentenceTransformer(model_name)
 
     #todo add BERT for semantic.
     def fit(self, X_source: np.ndarray, col_names: list) -> "FeatureSemanticMatcher":
-        from .tab_transformers import compute_feature_stats
 
         self.source_col_names = list(col_names)
-        self.source_stats = compute_feature_stats(X_source)
+        self.source_stats = compute_feature_stats(_normalize_for_stats(X_source))
+
+        print("[fit] source_stats (skew, kurt) для первых 5 фичей:")
+        for i, name in enumerate(col_names[:5]):
+            print(f"  {name}: skew={self.source_stats[i][2]:.3f}, kurt={self.source_stats[i][3]:.3f}")
 
         names = [n.lower().replace("_", " ") for n in col_names]
 
         try:
-            from sentence_transformers import SentenceTransformer
             print("[FeatureSemanticMatcher] BERT (multilingual)...")
             self._bert = SentenceTransformer(
                 "paraphrase-multilingual-MiniLM-L12-v2"
@@ -55,11 +60,15 @@ class FeatureSemanticMatcher:
     def match(self, X_target: np.ndarray, target_col_names: list,
               verbose: bool = True) -> np.ndarray:
         from sklearn.metrics.pairwise import cosine_similarity
-        from .tab_transformers import compute_feature_stats
 
         assert self.source_stats is not None, "Error with fit"
 
-        target_stats = compute_feature_stats(X_target)
+        target_stats = compute_feature_stats(_normalize_for_stats(X_target))
+
+        print("[match] target_stats (skew, kurt):")
+        for i, name in enumerate(target_col_names[:5]):
+            print(f"  {name}: skew={target_stats[i][2]:.3f}, kurt={target_stats[i][3]:.3f}")
+
         target_names = [n.lower().replace("_", " ") for n in target_col_names]
 
         # Семантическое сходство: BERT или TF-IDF
@@ -78,7 +87,6 @@ class FeatureSemanticMatcher:
 
         for i in range(n_t):
             for j in range(n_s):
-                # Только числовые фичи с обеих сторон
                 if i < n_t_num and self.source_stats[j].any():
                     t = target_stats[i]
                     s = self.source_stats[j]
@@ -92,6 +100,14 @@ class FeatureSemanticMatcher:
         for i in range(n_t_num, n_t):  # только cat target фичи
             similarity[i] = sem_sim[i]  # total = только BERT, без dist
 
+        age_idx = target_col_names.index('age') if 'age' in target_col_names else None
+        if age_idx is not None:
+            print(f"\n[debug] age similarities:")
+            for j, src_name in enumerate(self.source_col_names):
+                if sem_sim[age_idx, j] > 0.3:
+                    print(
+                        f"  {src_name}: sem={sem_sim[age_idx, j]:.3f}, dist={dist_sim[age_idx, j]:.3f}, total={similarity[age_idx, j]:.3f}")
+
         if verbose:
             print("\n=== Feature Alignment ===")
             for i, t_name in enumerate(target_col_names):
@@ -103,6 +119,47 @@ class FeatureSemanticMatcher:
             print()
 
         return similarity.astype(np.float32)
+
+    def get_match_indices(self, X_target, num_col_names, cat_col_names):
+        """Return {'num': {i: j}, 'cat': {i: j}} — mapping target→source"""
+        from sklearn.metrics.pairwise import cosine_similarity
+
+        target_stats = compute_feature_stats(_normalize_for_stats(X_target))
+        all_col_names = num_col_names + cat_col_names
+        target_names = [n.lower().replace("_", " ") for n in all_col_names]
+
+        if self._use_bert:
+            target_embs = self._bert.encode(target_names, show_progress_bar=False)
+        else:
+            target_embs = self._vectorizer.transform(target_names)
+
+        sem_sim = cosine_similarity(target_embs, self._source_name_embs)
+        n_t_num = len(num_col_names)
+        n_t = len(all_col_names)
+        n_s = len(self.source_col_names)
+
+        dist_sim = np.zeros((n_t, n_s), dtype=np.float32)
+        for i in range(n_t_num):
+            for j in range(n_s):
+                if self.source_stats[j].any():
+                    t_n = (target_stats[i] - target_stats[i].mean()) / (target_stats[i].std() + 1e-8)
+                    s_n = (self.source_stats[j] - self.source_stats[j].mean()) / (self.source_stats[j].std() + 1e-8)
+                    val = 1.0 / (1.0 + np.linalg.norm(t_n - s_n))
+                    dist_sim[i, j] = 0.0 if np.isnan(val) else val
+
+        similarity = self.alpha * sem_sim + self.beta * dist_sim
+        for i in range(n_t_num, n_t):
+            similarity[i] = sem_sim[i]
+
+        match_indices = {'num': {}, 'cat': {}}
+        for i in range(n_t):
+            j = int(np.argmax(similarity[i]))
+            if i < n_t_num:
+                match_indices['num'][i] = j
+            else:
+                match_indices['cat'][i - n_t_num] = j
+
+        return match_indices
 
     def forward(self, stats: torch.Tensor) -> torch.Tensor:
         stats_norm = (stats - stats.mean(dim=-1, keepdim=True)) / (
@@ -249,27 +306,30 @@ class DirectTabTransformer:
 
         if self.transfer_mode_ in (None, "pretrain", "finetune"):
             # Fit matcher on current dataset
-            self.matcher_ = FeatureSemanticMatcher()
+            # self.matcher_ = FeatureSemanticMatcher()
+            self.matcher_ = FeatureSemanticMatcher(
+                model_name="paraphrase-multilingual-MiniLM-L12-v2"  # ← FinBERT от Prosus
+            )
             num_for_match = num_train if num_train is not None else cat_train
             # col_names = (self.num_features_ or []) + (self.cat_features_ or [])
-            self.matcher_ = FeatureSemanticMatcher()
+            # self.matcher_ = FeatureSemanticMatcher()
             num_col_names = [c for c in (self.num_features_ or []) if c != 'Unnamed: 0']
             cat_col_names = self.cat_features_ or []
 
             if num_for_match is not None and num_col_names:
                 self.matcher_.fit(num_for_match, num_col_names)
 
-                # Категориальные — только BERT, stats = zeros
+                # categorical features only  BERT, stats = zeros
                 if cat_col_names and self.matcher_._use_bert:
                     cat_names = [n.lower().replace("_", " ") for n in cat_col_names]
                     cat_embs = self.matcher_._bert.encode(
                         cat_names, show_progress_bar=False)
 
-                    # Добавляем к source: имена + нулевые статистики + BERT
+                    # add source: name + NaN statistic + BERT
                     self.matcher_.source_col_names += cat_col_names
                     self.matcher_.source_stats = np.vstack([
                         self.matcher_.source_stats,
-                        np.zeros((len(cat_col_names), 8), dtype=np.float32)  # нули для cat
+                        np.zeros((len(cat_col_names), 8), dtype=np.float32)
                     ])
                     self.matcher_._source_name_embs = np.vstack([
                         self.matcher_._source_name_embs,
@@ -308,8 +368,8 @@ class DirectTabTransformer:
                 matcher_path = self.backbone_path_.replace(".pth", "_matcher.pkl")
                 if os.path.exists(matcher_path):
                     self.matcher_ = FeatureSemanticMatcher.load(matcher_path)
-                    self.matcher_.alpha = 0.7
-                    self.matcher_.beta = 0.3
+                    self.matcher_.alpha = 0.8
+                    self.matcher_.beta = 0.2
                     num_for_match = num_train if num_train is not None else cat_train
                     col_names = (self.num_features_ or []) + (self.cat_features_ or [])
                     if num_for_match is not None and col_names:
@@ -337,11 +397,24 @@ class DirectTabTransformer:
             if os.path.exists(matcher_path):
                 matcher_a = FeatureSemanticMatcher.load(matcher_path)
 
+                matcher_a.alpha = 0.8
+                matcher_a.beta = 0.2
+
+                print(f"Matcher source cols ({len(matcher_a.source_col_names)}): {matcher_a.source_col_names[:5]}")
+
                 print(f"[Matcher] source_cols ({len(matcher_a.source_col_names)}): {matcher_a.source_col_names}")
                 print(f"[Matcher] source_stats shape: {matcher_a.source_stats.shape}")
 
-                col_names_b = (self.num_features_ or []) + (self.cat_features_ or [])
-                num_for_match = num_train if num_train is not None else cat_train
+                skip_cols = {'Unnamed: 0'}
+                num_features_clean = [c for c in (self.num_features_ or []) if c not in skip_cols]
+                col_names_b = num_features_clean + (self.cat_features_ or [])
+
+                if num_train is not None:
+                    keep_idx = [i for i, c in enumerate(self.num_features_ or []) if c not in skip_cols]
+                    num_for_match = num_train[:, keep_idx]
+                else:
+                    num_for_match = cat_train
+
                 print("\n=== Feature mapping: Stage A → Stage B ===")
                 matcher_a.match(num_for_match, col_names_b, verbose=True)
 
@@ -355,6 +428,9 @@ class DirectTabTransformer:
                 backbone_checkpoint=self.backbone_path_,
                 freeze_mode=self.freeze_mode_,
                 device=self.device_,
+                matcher_a=self.matcher_,
+                num_features=self.num_features_,
+                cat_features=self.cat_features_,
             )
 
         elif self.transfer_mode_ in ("zero_shot", "proj_adapt"):
@@ -414,6 +490,7 @@ class DirectTabTransformer:
 
         n_batches = len(loader)
         print(f"[predict_proba] {len(dataset)} rows, {n_batches} batch...")
+        start = time.time()
 
         with torch.no_grad():
             for i, batch in enumerate(loader):
@@ -421,10 +498,16 @@ class DirectTabTransformer:
                 cat = batch["cat"].to(self.device_) if "cat" in batch else None
                 num = batch["num"].to(self.device_) if "num" in batch else None
                 preds = self.model_(cat, num)
+                preds = torch.sigmoid(preds)
                 all_preds.append(preds.cpu().numpy())
 
                 if (i + 1) % max(1, n_batches // 5) == 0:
-                    print(f"[predict_proba] {i + 1}/{n_batches} batch")
+                    elapsed = time.time() - start
+                    rows_done = (i + 1) * self.params.get("batch_size", 128)
+                    speed = rows_done / elapsed if elapsed > 0 else 0
+                    eta = (n_batches - i - 1) * elapsed / (i + 1)
+                    print(f"[predict_proba] {i + 1}/{n_batches} batch | "
+                          f"{speed:.0f} rows/sec | ETA: {eta:.1f}s")
 
         probas = np.concatenate(all_preds)
         return np.column_stack([1 - probas, probas])

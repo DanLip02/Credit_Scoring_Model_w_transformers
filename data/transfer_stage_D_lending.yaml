@@ -44,19 +44,19 @@ model:
 
           # ── Обучение ─────────────────────────────────────
           lr: 0.0003
-          batch_size: 512
+          batch_size: 256
           epochs: 15
           early_stopping_patience: 5
           warmup_ratio: 0.05
-          lambda_align: 0.0
+          lambda_align: 0.2
           adapt_epochs: 15
 
           class_weight: 'balanced'
 
           # ── Transfer ─────────────────────────────────────
-          transfer_mode: 'proj_adapt'
-#          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_finetune_none.pth
-          freeze_mode: 'full'
+          transfer_mode: 'finetune'
+          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_finetune_none.pth
+          freeze_mode: 'none'
 
 metrics:
   base:

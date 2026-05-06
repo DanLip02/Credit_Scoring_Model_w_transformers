@@ -19,8 +19,16 @@ def find_optimal_threshold(y_test, y_prob, fn_cost=5, fp_cost=1):
     """
     fpr, tpr, thresholds = roc_curve(y_test, y_prob)
 
+    print(f"[threshold] Перебираем {len(thresholds)} порогов на {len(y_test)} строках...")
+
+    if len(thresholds) > 1000:
+            idx = np.linspace(0, len(thresholds) - 1, 1000, dtype=int)
+            thresholds = thresholds[idx]
+
     total_cost = []
-    for thresh in thresholds:
+    print(f"y_prob min={y_prob.min():.4f}, max={y_prob.max():.4f}, mean={y_prob.mean():.4f}")
+
+    for i, thresh in enumerate(thresholds):
         y_pred = (y_prob >= thresh).astype(int)
         tn, fp, fn, tp = confusion_matrix(y_test, y_pred).ravel()
         cost = fn * fn_cost + fp * fp_cost

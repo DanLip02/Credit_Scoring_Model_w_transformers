@@ -6,6 +6,7 @@ import torch.optim as optim
 import numpy as np
 from sklearn.preprocessing import StandardScaler, OrdinalEncoder
 from sklearn.model_selection import train_test_split
+from sklearn.utils.class_weight import compute_class_weight
 from .tab_transformers import TabTransformerModel, compute_feature_stats, FeatureStatEmbedder
 import os
 
@@ -75,10 +76,10 @@ def eval_loop(model, loader, device):
             y = batch["y"].to(device)
 
             #todo check why NaN in transfer learning:
-            if num is not None:
-                print(f"num NaN: {torch.isnan(num).sum().item()}, inf: {torch.isinf(num).sum().item()}")
-            if cat is not None:
-                print(f"cat NaN: {torch.isnan(cat.float()).sum().item()}")
+            # if num is not None:
+            #     print(f"num NaN: {torch.isnan(num).sum().item()}, inf: {torch.isinf(num).sum().item()}")
+            # if cat is not None:
+            #     print(f"cat NaN: {torch.isnan(cat.float()).sum().item()}")
 
             out = model(cat, num)
 
@@ -134,15 +135,29 @@ def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, c
     total_steps = TT["epochs"] * len(train_loader)
     warmup_steps = int(total_steps * TT.get("warmup_ratio", 0.1)) if TT.get("warmup_ratio", 0.1) > 0 else 0
 
+    warmup_epochs = int(TT["epochs"] * TT.get("warmup_ratio", 0.1))
+
     if warmup_steps > 0:
-        scheduler = torch.optim.lr_scheduler.LinearLR(
+        scheduler_warmup = torch.optim.lr_scheduler.LinearLR(
             opt,
             start_factor=0.1,
             end_factor=1.0,
             total_iters=warmup_steps
         )
     else:
-        scheduler = None
+        scheduler_warmup = None
+
+    scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
+        opt,
+        T_max=TT["epochs"] - warmup_epochs,
+        eta_min=1e-6
+    )
+
+    scheduler = torch.optim.lr_scheduler.SequentialLR(
+        opt,
+        schedulers=[scheduler_warmup, scheduler_cosine],
+        milestones=[warmup_steps]
+    ) if scheduler_warmup is not None else scheduler_cosine
 
     # train_ds = TabDataset(cat_train, num_train, y_train)
     # val_ds = TabDataset(cat_val, num_val, y_val)
@@ -153,7 +168,7 @@ def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, c
     for epoch in range(TT["epochs"]):
         train_loss = train_loop(model, train_loader, opt, loss_fn, device)
 
-        if scheduler is not None and epoch < warmup_steps // len(train_loader):
+        if scheduler is not None:
             scheduler.step()
 
         ys_val, preds_val = eval_loop(model, val_loader, device)
@@ -208,11 +223,30 @@ def _extract_feature_embeddings(model, device="cpu") -> dict:
 
     return result
 
+def _extract_feature_embeddings_grad(model, device):
+    result = {}
+    if model.num_proj is not None:
+        num_embs = torch.stack([
+            proj.weight.mean(dim=1)
+            for proj in model.num_proj.proj
+        ])
+        result["num"] = num_embs.to(device)
+
+    if len(model.cat_emb.embs) > 0:
+        cat_embs = torch.stack([
+            emb.weight.mean(dim=0)
+            for emb in model.cat_emb.embs
+        ])
+        result["cat"] = cat_embs.to(device)
+
+    return result
+
 def alignment_loss(
         embs_source: dict,  # from _extract_feature_embeddings model A
         embs_target: dict,  # from _extract_feature_embeddings other models
         lambda_align: float = 0.1,
         margin: float = 0.3,
+        match_indices: dict = None
 ) -> torch.Tensor:
     """
     Contrastive Alignment Loss between feature 's embeddings of datasets A and other.
@@ -237,21 +271,23 @@ def alignment_loss(
         tgt = embs_target[key]  # [n_target, D]
 
         for i in range(tgt.shape[0]):
-            # cosine distance with each feature source
+            if match_indices and key in match_indices and i in match_indices[key]:
+                j = match_indices[key][i]
+                if j < src.shape[0]:
+                    sim = F.cosine_similarity(
+                        tgt[i].unsqueeze(0),
+                        src[j].unsqueeze(0)
+                    ).squeeze()
+                    loss = loss + (1.0 - sim)
+                    n_pairs += 1
+                    continue
             sims = F.cosine_similarity(
-                tgt[i].unsqueeze(0).expand(src.shape[0], -1),
-                src
-            )  # [n_source]
-
+                tgt[i].unsqueeze(0).expand(src.shape[0], -1), src)
             best_sim = sims.max()
-
             if best_sim > 0.5:
-                # the best same feature → closer
                 loss = loss + (1.0 - best_sim)
             else:
-                # no close feature → from the closest one (regularization)
                 loss = loss + torch.clamp(best_sim - margin, min=0.0)
-
             n_pairs += 1
 
     if n_pairs == 0:
@@ -310,6 +346,9 @@ def finetune_tabtransformer(
     backbone_checkpoint: str,
     freeze_mode: str = "last_layer",
     device: str = "cpu",
+    matcher_a=None,
+    num_features=None,
+    cat_features=None,
 ):
     """
     Stage B — finetune on new dataset
@@ -426,18 +465,64 @@ def finetune_tabtransformer(
         except Exception as e:
             print(f"[alignment_loss] Не удалось загрузить эмбеддинги: {e}")
 
-    for epoch in range(TT["epochs"]):
-        train_loss = train_loop(model, train_loader, opt, loss_fn, device)
+    match_indices = None
+    if source_embs is not None and lambda_align > 0 and matcher_a is not None:
 
+        skip_cols = {'Unnamed: 0'}
+        num_features_clean = [c for c in (num_features or []) if c not in skip_cols]
+        keep_idx = [i for i, c in enumerate(num_features or []) if c not in skip_cols]
+        num_train_clean = num_train[:, keep_idx] if num_train is not None else num_train
+
+        match_indices = matcher_a.get_match_indices(
+            num_train_clean,
+            num_features_clean,
+            cat_features or []
+        )
+        print(f"[alignment_loss] match_indices: "
+              f"num={len(match_indices['num'])}, cat={len(match_indices['cat'])}")
+
+    # if matcher_a is not None:
+    #     col_names_target = (num_features or []) + (cat_features or [])
+    #     num_for_match = num_train if num_train is not None else cat_train
+    #     print("\n=== Feature Alignment (finetune) ===")
+    #     matcher_a.match(num_for_match, col_names_target, verbose=True)
+
+    for epoch in range(TT["epochs"]):
+        model.train()
+        total_epoch_loss = 0.0
         align_val = 0.0
-        if source_embs is not None:
-            target_embs = _extract_feature_embeddings(model, device)
-            a_loss = alignment_loss(source_embs, target_embs, lambda_align=lambda_align)
-            if a_loss.requires_grad:
-                opt.zero_grad()
-                a_loss.backward()
-                opt.step()
-            align_val = a_loss.item()
+
+        for batch in train_loader:
+            cat = batch["cat"].to(device) if "cat" in batch else None
+            num = batch["num"].to(device) if "num" in batch else None
+            y = batch["y"].to(device)
+
+            opt.zero_grad()
+
+            out = model(cat, num)
+            task_loss = loss_fn(out, y)
+
+            # Alignment loss — sum with task_loss
+            if source_embs is not None and lambda_align > 0:
+                # target_embs = _extract_feature_embeddings(model, device)
+                target_embs = _extract_feature_embeddings_grad(model, device)
+                a_loss = alignment_loss(
+                    source_embs, target_embs,
+                    lambda_align=lambda_align,
+                    match_indices=match_indices,  # mapping from matcher
+                )
+                total_loss = task_loss + a_loss
+                align_val = a_loss.item()
+            else:
+                total_loss = task_loss
+
+            total_loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            opt.step()
+
+            total_epoch_loss += task_loss.item() * len(y)
+
+        train_loss = total_epoch_loss / len(train_loader.dataset)
 
         ys_val, preds_val = eval_loop(model, val_loader, device)
         from sklearn.metrics import roc_auc_score
@@ -453,12 +538,11 @@ def finetune_tabtransformer(
             patience_counter += 1
 
         align_str = f" | align={align_val:.4f}" if source_embs is not None else ""
-
         print(f"  Epoch {epoch + 1:3d}/{TT['epochs']} | "
               f"loss={train_loss:.4f}{align_str} | val_auc={auc:.4f}{marker}")
 
         if patience_counter >= patience:
-            print(f"  Early stopping on epoch {epoch+1}")
+            print(f"  Early stopping on epoch {epoch + 1}")
             break
 
     print(f"\n Best AUC={best_auc:.4f}")
@@ -499,6 +583,7 @@ def adapt_to_new_dataset(
     print(f"  Data: {len(y_data) if y_data is not None else '—'}")
     print(f"{'='*55}")
 
+    print(device)
     n_num = num_data.shape[1] if num_data is not None else 0
     model = TabTransformerModel(
         cardinalities=cardinalities,
@@ -540,13 +625,14 @@ def adapt_to_new_dataset(
         opt = torch.optim.Adam(adapt_params, lr=TT["lr"] * 0.3)
         # loss_fn = torch.nn.BCELoss()
 
-        from sklearn.utils.class_weight import compute_class_weight
+
         _weights = compute_class_weight("balanced", classes=np.unique(y_data), y=y_data)
         _w0 = torch.tensor(_weights[0], dtype=torch.float32).to(device)  # weight of good class 0
         _w1 = torch.tensor(_weights[1], dtype=torch.float32).to(device)  # weight of bad 1
 
         def loss_fn(pred, target):
             # Взвешенный BCE: плохие клиенты (1) получают больший вес
+            pred = torch.sigmoid(pred)
             weights = torch.where(target == 1, _w1, _w0)
             bce = torch.nn.functional.binary_cross_entropy(pred, target, reduction='none')
             return (bce * weights).mean()
@@ -592,6 +678,7 @@ def adapt_to_new_dataset(
             if num is not None:
                 num = num.to(device)
             preds = model(cat, num)
+            preds = torch.sigmoid(preds)
             all_preds.append(preds.cpu().numpy())
             if (i + 1) % max(1, n_batches // 5) == 0:
                 print(f"  [{i + 1}/{n_batches} batch]")

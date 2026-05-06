@@ -16,6 +16,8 @@ full_data:
     sheet_name: "sheet_name"
     target: "target"
     dropna: False
+    drop_columns:
+      - "Customer_ID"
 
   features:
     numeric:
@@ -33,10 +35,10 @@ model:
         type: Transformers
         params:
           # ── Архитектура — должна совпадать со Stage A ────
-          embed_dim: 32
-          n_heads: 4
-          n_layers: 2
-          mlp_dim: 64
+          embed_dim: 64
+          n_heads: 8
+          n_layers: 4
+          mlp_dim: 256
 
           # ── Регуляризация ────────────────────────────────
           dropout: 0.2

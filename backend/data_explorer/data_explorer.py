@@ -72,6 +72,12 @@ def prepare_features(df: pd.DataFrame, cfg: dict):
     filter_col = cfg["data"].get("filter_columns", None)
     dropna = cfg["data"].get("dropna", False)
     df = df[df[skip] == 0] if skip is not None else df
+    drop_cols = cfg["data"].get("drop_columns", None)
+
+    if drop_cols is not None:
+        drop_cols = [c for c in drop_cols if c in df.columns]
+        df = df.drop(columns=drop_cols)
+        print(f"Dropped columns: {drop_cols}")
 
     if date_col is not None:
         df[date_col] = pd.to_datetime(df[date_col])

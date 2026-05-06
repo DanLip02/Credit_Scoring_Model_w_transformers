@@ -5,6 +5,29 @@ from scipy import stats as scipy_stats
 import numpy as np
 # import torch.nn.functional as F
 
+def _normalize_for_stats(X):
+    """
+    Normalize each feature before statistuc calculation.
+    Remove scale — only compare by form of distribution.
+    """
+    X_norm = np.zeros_like(X, dtype=np.float32)
+    for i in range(X.shape[1]):
+        col = X[:, i]
+        col_clean = col[~np.isnan(col)]
+        if len(col_clean) == 0:
+            continue
+        mean = np.mean(col_clean)
+        std  = np.std(col_clean) + 1e-8
+        X_norm[:, i] = (col - mean) / std
+        col_norm = (col - mean) / std
+        col_norm = np.clip(col_norm, -5, 5)
+
+        if i == 1:
+            print(f"[norm] col {i}: min={col_norm.min():.2f}, max={col_norm.max():.2f}")
+
+        X_norm[:, i] = col_norm
+
+    return X_norm
 
 def compute_feature_stats(X: np.ndarray) -> np.ndarray:
     """
@@ -73,10 +96,12 @@ class NumProj(nn.Module):
     def __init__(self, n_num, emb_dim):
         super().__init__()
         # self.proj = nn.Linear(n_num, emb_dim)
+        self.bn = nn.BatchNorm1d(n_num)
         self.proj = nn.ModuleList([nn.Linear(1, emb_dim) for _ in range(n_num)])
 
     def forward(self, x):
         # x: [B, n_num]
+        x = self.bn(x)
         tokens = []
         # out = self.proj(x).unsqueeze(1)  # [B, 1, D]   -> All numeric features to one
 
@@ -107,12 +132,24 @@ class TabTransformerModel(nn.Module):
         self.cat_emb = CatEmbeddings(cardinalities, emb_dim)
         self.num_proj = NumProj(n_num, emb_dim) if n_num>0 else None
         self.transformer = SimpleTransformer(d_model=emb_dim, nhead=nhead, num_layers=n_layers, dim_feedforward=mlp_dim, dropout=dropout)
-        self.cls_token = nn.Parameter(torch.randn(1, 1, emb_dim))  #cls token - not mean pooling, but with weights.
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, emb_dim))  #cls token - not mean pooling, but with weights.
+        self.input_norm = nn.LayerNorm(emb_dim)
+        self.pool_weights = nn.Linear(emb_dim, 1)
+        # self.cls = nn.Sequential(
+        #     nn.Linear(emb_dim, mlp_dim),
+        #     nn.ReLU(),
+        #     nn.Dropout(dropout),
+        #     nn.Linear(mlp_dim, 1)
+        # )
         self.cls = nn.Sequential(
             nn.Linear(emb_dim, mlp_dim),
-            nn.ReLU(),
+            nn.LayerNorm(mlp_dim),
+            nn.GELU(),
             nn.Dropout(dropout),
-            nn.Linear(mlp_dim, 1)
+            nn.Linear(mlp_dim, mlp_dim // 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(mlp_dim // 2, 1)
         )
 
     def forward(self, cat_x, num_x=None):
@@ -132,15 +169,20 @@ class TabTransformerModel(nn.Module):
         assert len(tokens) > 0, "No catigorical, No numerical!"
 
         x = torch.cat(tokens, dim=1)  # [B, seq_len, D]
+        x = self.input_norm(x)
         cls = self.cls_token.expand(x.size(0), -1, -1)
         x = torch.cat([cls, x], dim=1)
         h = self.transformer(x)  # [B, seq_len, D]
 
         # pooled = h.mean(dim=1)  # [B, D]
-        pooled = h[:, 0]
+        # pooled = h[:, 0]
+        scores = self.pool_weights(h[:, 1:]).squeeze(-1)  # [B, seq_len]
+        weights = torch.softmax(scores, dim=-1).unsqueeze(-1)  # [B, seq_len, 1]
+        pooled = (h[:, 1:] * weights).sum(dim=1)
+
         logit = self.cls(pooled).squeeze(1)  # [B]
 
-        return torch.sigmoid(logit)
+        return logit
 
     def freeze_backbone(self, mode: str = "full"):
         """
@@ -194,13 +236,15 @@ class TabTransformerModel(nn.Module):
 
     def get_backbone_state_dict(self) -> dict:
         """
-        Return only weights backbone (transformer + cls_token).
+        Return only weights backbone (transformer + cls_token + input_norm + pool_weights).
         Save before transfer on new dataset.
         Weight of cat_emb, num_proj, cls — specific, no transfer there.
         """
         return {
             k: v for k, v in self.state_dict().items()
             if k.startswith("transformer.") or k == "cls_token"
+            or k.startswith("input_norm.")
+            or k.startswith("pool_weights.")
         }
 
     def load_backbone_state_dict(self, backbone_state: dict):
