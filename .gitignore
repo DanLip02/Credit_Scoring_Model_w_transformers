@@ -210,3 +210,18 @@ __marimo__/
 # MLflow artifacts and model checkpoints
 mlartifacts/
 models/
+
+#data
+data/Dataset_A/*.parquet
+data/Dataset_A/*.zip
+data/Dataset_A/*.csv
+models/**/*.pth
+data/*.parquet
+data/*.zip
+data/*.csv
+
+models/transformers_/*.pth
+models/transformers_/*.pkl
+
+mlartifacts/
+mlruns/

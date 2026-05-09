@@ -4,7 +4,7 @@ run:
   split_type: base
   split_config:
     params:
-      test_size: 0.5
+      test_size: 0.2
       random_state: 42
       stratify: true
 
@@ -48,16 +48,16 @@ model:
           epochs: 1
           early_stopping_patience: 5
           warmup_ratio: 0.0
-          lambda_align: 0.0
-          adapt_epochs: 0
+          lambda_align: 0.3
 
           class_weight: 'balanced'
 
           # ── Transfer: zero_shot ──────────────────────────
           # Backbone загружается, inference без обучения
-          transfer_mode: 'zero_shot'
+          transfer_mode: 'proj_adapt'
           backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_finetune_none.pth
-          freeze_mode: 'full'
+          adapt_epochs: 15
+          freeze_mode: 'last_layer'
 
 metrics:
   base:

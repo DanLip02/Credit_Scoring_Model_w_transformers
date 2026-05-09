@@ -35,6 +35,7 @@ model:
       - name: tabtransformer_pretrain
         type: Transformers
         params:
+          dataset_name: "HomeCredit"
           # ── Архитектура ──────────────────────────────────
           # emb_dim должен совпадать между A, B и C
           # менять его нельзя после предобучения

@@ -16,6 +16,8 @@ full_data:
     sheet_name: "sheet_name"
     target: "default_flg"
     dropna: False
+    drop_columns:
+      - "id"
 
   features:
     numeric:
@@ -33,10 +35,11 @@ model:
         type: Transformers
         params:
           # ── Архитектура — совпадает со Stage A/B ─────────
-          embed_dim: 32
-          n_heads: 4
-          n_layers: 2
-          mlp_dim: 64
+          embed_dim: 64
+          n_heads: 8
+          n_layers: 4
+          mlp_dim: 256
+
 
           # ── Регуляризация ────────────────────────────────
           dropout: 0.2
@@ -45,7 +48,7 @@ model:
           # ── Обучение ─────────────────────────────────────
           lr: 0.0003
           batch_size: 256
-          epochs: 15
+          epochs: 35
           early_stopping_patience: 5
           warmup_ratio: 0.05
           lambda_align: 0.2

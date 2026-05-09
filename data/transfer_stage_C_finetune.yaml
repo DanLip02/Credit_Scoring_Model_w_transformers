@@ -48,7 +48,7 @@ model:
           # ── Обучение ──────────────────────────────────────
           lr: 0.0003
           batch_size: 64         # маленький батч — датасет маленький
-          epochs: 60
+          epochs: 15
           early_stopping_patience: 15
           warmup_ratio: 0.05
           class_weight: "balanced"
