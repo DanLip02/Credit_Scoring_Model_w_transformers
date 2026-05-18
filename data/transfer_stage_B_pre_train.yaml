@@ -1,0 +1,68 @@
+run:
+  type_data: test
+  type_class: base
+  split_type: base
+  split_config:
+    params:
+      test_size: 0.2             # val побольше — датасет маленький, важно не переобучиться
+      random_state: 42
+      stratify: true
+
+  type_class_model: transformers
+
+full_data:
+  data:
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_B\train_baseline_ML.csv
+    sheet_name: "sheet_name"
+    target: "SeriousDlqin2yrs"             # имя целевой колонки датасета B
+    dropna: False
+    drop_columns:
+      - "Unnamed: 0"
+
+  features:
+    numeric:
+    categorical:
+
+model:
+  model_name: tabtransformer_stage_B
+  framework: sklearn
+  ensemble:
+    type: transformers_transfer  # ключевое отличие от Stage A
+    voting: soft
+    final_estimator: null
+    estimators:
+      - name: tabtransformer_finetune
+        type: Transformers
+        params:
+          dataset_name: "GiveMeCredit"
+          model_name: "tabtransformer_stageB_gmc"
+          embed_dim: 64
+          n_heads: 8
+          n_layers: 4
+          mlp_dim: 256
+
+          dropout: 0.1
+          weight_decay: 0.1
+
+          lr: 0.00001
+          batch_size: 256
+          epochs: 25
+          early_stopping_patience: 10
+          warmup_ratio: 0.1
+
+          class_weight: 'balanced'
+
+          transfer_mode: 'pretrain'
+
+
+
+
+metrics:
+  base:
+    - auc
+    - ks
+    - fnr
+    - tpr
+    - fpr
+    - precision
+    - accuracy

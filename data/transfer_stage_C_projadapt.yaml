@@ -34,26 +34,28 @@ model:
       - name: tabtransformer_projadapt
         type: Transformers
         params:
-          # Архитектура должна совпадать со Stage A
+#          dataset_name: "CreditScoring"
+          model_name: "tabtransformer_stageC_crs"
           embed_dim: 64
           n_heads: 8
           n_layers: 4
           mlp_dim: 256
 
           dropout: 0.2
-          weight_decay: 0.01
-          lr: 0.0003            # чуть выше чем finetune — учим только входы
-          batch_size: 512
-          epochs: 15            # небольшой адаптационный этап
+          weight_decay: 0.1
+          lr: 0.001
+          batch_size: 128
+          epochs: 15
           early_stopping_patience: 5
           warmup_ratio: 0.05
-          lambda_align: 0.0
+          lambda_align: 5
 
           class_weight: 'balanced'
           transfer_mode: 'proj_adapt'
 
-          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_finetune_none.pth
-          adapt_epochs: 15
+          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_stageE_taiwan.pth
+          adapt_epochs: 10
+          freeze_mode: "full"
 
 metrics:
   base:

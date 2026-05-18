@@ -10,7 +10,8 @@ from sklearn.utils.class_weight import compute_class_weight
 from .tab_transformers import TabTransformerModel, compute_feature_stats, FeatureStatEmbedder
 import os
 import time
-
+import random
+import torch.nn.functional as F
 # TT = {
 #     "embed_dim": 32,
 #     "n_heads": 4,
@@ -48,12 +49,69 @@ class TabDataset(Dataset):
         return item
 
 
+# def merge_embeddings_old(source_embs_A, source_embs_B,
+#                      match_indices,
+#                      source_col_names_A,
+#                      source_col_names_B,
+#                      alpha=0.7):
+#     result = {}
+#
+#     for key in ['num', 'cat']:
+#         if key not in source_embs_A or key not in source_embs_B:
+#             if key in source_embs_A:
+#                 result[key] = source_embs_A[key].clone()
+#             continue
+#
+#         embs_A = source_embs_A[key]  # [n_A, emb_dim]
+#         embs_B = source_embs_B[key]  # [n_B, emb_dim]
+#         merged = embs_A.clone()
+#
+#         print(f"[merge] source_col_names_A length: {len(source_col_names_A)}")
+#         print(f"[merge] embs_A shape: {embs_A.shape}")
+#
+#         # avarage
+#         matched_B = set()
+#         for i_B, i_A in match_indices[key].items():
+#             if i_B < embs_B.shape[0] and i_A < embs_A.shape[0]:
+#                 merged[i_A] = alpha * embs_B[i_B] + (1 - alpha) * embs_A[i_A]
+#                 matched_B.add(i_B)
+#                 s_name = source_col_names_A[i_A] if i_A < len(source_col_names_A) else f"src[{i_A}]"
+#                 b_name = source_col_names_B[i_B] if i_B < len(source_col_names_B) else f"feat[{i_B}]"
+#                 print(f"  [merge] {b_name:25s} ↔ {s_name:25s} (alpha={alpha})")
+#
+#         # — feature only in new - add
+#         new_embs = []
+#         for i_B in range(embs_B.shape[0]):
+#             if i_B not in matched_B:
+#                 new_embs.append(embs_B[i_B])
+#                 col_name = source_col_names_B[i_B] if i_B < len(source_col_names_B) else f"feat_{i_B}"
+#                 print(f"  [new]   {col_name} added from new stage")
+#
+#         if new_embs:
+#             new_tensor = torch.stack(new_embs)
+#             merged = torch.cat([merged, new_tensor], dim=0)
+#
+#         result[key] = merged
+#
+#     print(f"\n[merge_embeddings] num: {source_embs_A.get('num', torch.tensor([])).shape[0]} + "
+#           f"new {len([i for i in range(source_embs_B.get('num', torch.tensor([])).shape[0]) if i not in match_indices.get('num', {}).keys()])} "
+#           f"= {result.get('num', torch.tensor([])).shape[0]}")
+#
+#
+#     return result
+
 def merge_embeddings(source_embs_A, source_embs_B,
                      match_indices,
                      source_col_names_A,
                      source_col_names_B,
+                     source_col_names_matcher=None,
                      alpha=0.7):
     result = {}
+
+    n_num_A = source_embs_A['num'].shape[0] if 'num' in source_embs_A else 0
+    n_cat_A = source_embs_A['cat'].shape[0] if 'cat' in source_embs_A else 0
+    n_num_B = source_embs_B['num'].shape[0] if 'num' in source_embs_B else 0
+    n_cat_B = source_embs_B['cat'].shape[0] if 'cat' in source_embs_B else 0
 
     for key in ['num', 'cat']:
         if key not in source_embs_A or key not in source_embs_B:
@@ -61,36 +119,69 @@ def merge_embeddings(source_embs_A, source_embs_B,
                 result[key] = source_embs_A[key].clone()
             continue
 
-        embs_A = source_embs_A[key]  # [n_A, emb_dim]
-        embs_B = source_embs_B[key]  # [n_B, emb_dim]
+        embs_A = source_embs_A[key]
+        embs_B = source_embs_B[key]
         merged = embs_A.clone()
 
-        # avarage
-        matched_B = set()
-        for i_B, i_A in match_indices[key].items():
-            if i_B < embs_B.shape[0] and i_A < embs_A.shape[0]:
-                merged[i_A] = alpha * embs_B[i_B] + (1 - alpha) * embs_A[i_A]
-                matched_B.add(i_B)
-                print(f"  [merge] {source_col_names_B[i_B]:25s} ↔ "
-                      f"{source_col_names_A[i_A]:25s} (alpha={alpha})")
+        if key == 'num':
+            names_A = source_col_names_A[:n_num_A] if source_col_names_A else []
+            names_B = source_col_names_B[:n_num_B] if source_col_names_B else []
+            names_matcher = source_col_names_matcher[:n_num_A] if source_col_names_matcher else []
+        else:  # cat
+            names_A = source_col_names_A[n_num_A:n_num_A + n_cat_A] if source_col_names_A else []
+            names_B = source_col_names_B[n_num_B:n_num_B + n_cat_B] if source_col_names_B else []
+            names_matcher = source_col_names_matcher[n_num_A:n_num_A + n_cat_A] if source_col_names_matcher else []
 
-        # — feature only in new - add
+        name_to_idx_A = {name: idx for idx, name in enumerate(names_A)}
+
+        matcher_idx_to_name = {idx: name for idx, name in enumerate(names_matcher)}
+
+        print(f"\n[merge] Processing '{key}' features:")
+        print(f"  embs_A: {embs_A.shape}, names: {len(names_A)}")
+        print(f"  embs_B: {embs_B.shape}, names: {len(names_B)}")
+        print(f"  matcher names: {len(names_matcher)}")
+
+        matched_B = set()
+
+        for i_B, i_matcher in match_indices[key].items():
+            if i_B >= embs_B.shape[0]:
+                continue
+
+            if i_matcher < len(names_matcher):
+                matched_name = names_matcher[i_matcher]
+            else:
+                print(f"  [SKIP] matcher index {i_matcher} >= {len(names_matcher)}")
+                continue
+
+            i_A = name_to_idx_A.get(matched_name)
+
+            if i_A is None:
+                print(f"  [NEW] '{matched_name}' not in embs_A '{key}' - will be added as new")
+                continue
+
+            if i_A >= embs_A.shape[0]:
+                continue
+
+            merged[i_A] = alpha * embs_B[i_B] + (1 - alpha) * embs_A[i_A]
+            matched_B.add(i_B)
+
+            b_name = names_B[i_B] if i_B < len(names_B) else f"feat_B[{i_B}]"
+            a_name = names_A[i_A] if i_A < len(names_A) else f"feat_A[{i_A}]"
+            print(f"  [MERGE] {b_name:30s} → {a_name:30s} (via '{matched_name}', α={alpha:.2f})")
+
         new_embs = []
         for i_B in range(embs_B.shape[0]):
             if i_B not in matched_B:
                 new_embs.append(embs_B[i_B])
-                col_name = source_col_names_B[i_B] if i_B < len(source_col_names_B) else f"feat_{i_B}"
-                print(f"  [new]   {col_name} added from new stage")
+                col_name = names_B[i_B] if i_B < len(names_B) else f"feat_B[{i_B}]"
+                print(f"  [ADD]   {col_name:30s} → NEW FEATURE")
 
         if new_embs:
             new_tensor = torch.stack(new_embs)
             merged = torch.cat([merged, new_tensor], dim=0)
 
         result[key] = merged
-
-    print(f"\n[merge_embeddings] num: {source_embs_A.get('num', torch.tensor([])).shape[0]} + "
-          f"новых {len([i for i in range(source_embs_B.get('num', torch.tensor([])).shape[0]) if i not in match_indices.get('num', {}).keys()])} "
-          f"= {result.get('num', torch.tensor([])).shape[0]}")
+        print(f"  Result: {merged.shape[0]} embeddings (was {embs_A.shape[0]}, added {len(new_embs)})")
 
     return result
 
@@ -141,7 +232,7 @@ def eval_loop(model, loader, device):
     preds = np.concatenate(preds)
     return ys, preds
 
-def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, cardinalities, TT, device="cpu"):
+def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, cardinalities, TT, device="cpu", num_features=None, cat_features=None):
     np.random.seed(42)
     print(TT)
     class_weight = TT.get("class_weight", None)
@@ -231,12 +322,17 @@ def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, c
             save_dir = os.path.join(BASE_DIR, "..", "..", "models", "transformers_")
             os.makedirs(save_dir, exist_ok=True)
 
-            save_path = os.path.join(save_dir, "tabtransformer_best.pth")
+            model_name = TT.get("model_name", "tabtransformer_best")
+            save_path = os.path.join(save_dir, f"{model_name}.pth")
 
             torch.save(model.state_dict(), save_path)
             print(f"Model saved to {save_path}")
 
-            feature_embs = _extract_feature_embeddings(model, device)
+            feature_embs = _extract_feature_embeddings(
+                model, device,
+                num_features=num_features,
+                cat_features=cat_features
+            )
             emb_path = save_path.replace(".pth", "_feature_embs.pth")
             torch.save(feature_embs, emb_path)
             print(f"Feature embeddings saved to {emb_path}")
@@ -244,7 +340,7 @@ def fit_tabtransformer(cat_train, num_train, y_train, cat_val, num_val, y_val, c
     return model
 
 
-def _extract_feature_embeddings(model, device="cpu") -> dict:
+def _extract_feature_embeddings(model, device="cpu",  num_features=None, cat_features=None) -> dict:
     """
     extract feature embedding from model's weight .
     Save with Stage A, load with Stage B/C для alignment_loss.
@@ -257,17 +353,19 @@ def _extract_feature_embeddings(model, device="cpu") -> dict:
     with torch.no_grad():
         if model.num_proj is not None:
             num_embs = torch.stack([
-                proj.weight.mean(dim=1)  # [emb_dim]
+                proj.weight.mean(dim=1)
                 for proj in model.num_proj.proj
-            ])  # [n_num, emb_dim]
+            ])
             result["num"] = num_embs.to(device)
+            result["num_col_names"] = list(num_features) if num_features is not None else []
 
         if len(model.cat_emb.embs) > 0:
             cat_embs = torch.stack([
-                emb.weight.mean(dim=0)  # [emb_dim]
+                emb.weight.mean(dim=0)
                 for emb in model.cat_emb.embs
-            ])  # [n_cat, emb_dim]
+            ])
             result["cat"] = cat_embs.to(device)
+            result["cat_col_names"] = list(cat_features) if cat_features is not None else []
 
     return result
 
@@ -275,14 +373,14 @@ def _extract_feature_embeddings_grad(model, device):
     result = {}
     if model.num_proj is not None:
         num_embs = torch.stack([
-            proj.weight.mean(dim=1)
+            F.normalize(proj.weight.mean(dim=1), dim=0)
             for proj in model.num_proj.proj
         ])
         result["num"] = num_embs.to(device)
 
     if len(model.cat_emb.embs) > 0:
         cat_embs = torch.stack([
-            emb.weight.mean(dim=0)
+            F.normalize(emb.weight.mean(dim=0), dim=0)
             for emb in model.cat_emb.embs
         ])
         result["cat"] = cat_embs.to(device)
@@ -292,9 +390,11 @@ def _extract_feature_embeddings_grad(model, device):
 def alignment_loss(
         embs_source: dict,  # from _extract_feature_embeddings model A
         embs_target: dict,  # from _extract_feature_embeddings other models
-        lambda_align: float = 0.1,
+        lambda_align: float = 1,
         margin: float = 0.3,
-        match_indices: dict = None
+        match_indices: dict = None,
+        batch_size=None
+
 ) -> torch.Tensor:
     """
     Contrastive Alignment Loss between feature 's embeddings of datasets A and other.
@@ -340,6 +440,9 @@ def alignment_loss(
 
     if n_pairs == 0:
         return torch.tensor(0.0)
+
+    # if batch_size is not None:
+    #     return lambda_align * loss * batch_size / max(n_pairs, 1)
 
     return lambda_align * loss / n_pairs
 
@@ -454,17 +557,80 @@ def finetune_tabtransformer(
     # Here is init of input layers based on statistics of features
     stat_based_init(model, num_data=num_train, cat_data=cat_train, device=device)
 
-    with torch.no_grad():
-        for proj in model.num_proj.proj:
-            if torch.isnan(proj.weight).any():
-                nn.init.xavier_uniform_(proj.weight)
-                nn.init.zeros_(proj.bias)
+    # with torch.no_grad():
+    #     for proj in model.num_proj.proj:
+    #         if torch.isnan(proj.weight).any():
+    #             nn.init.xavier_uniform_(proj.weight)
+    #             nn.init.zeros_(proj.bias)
+    #
+    #     for emb in model.cat_emb.embs:
+    #         if torch.isnan(emb.weight).any():
+    #             nn.init.normal_(emb.weight, mean=0.0, std=0.01)
+    #
+    #     print("[init_check] Weights checked, NaN replaced with xavier/normal init")
 
-        for emb in model.cat_emb.embs:
-            if torch.isnan(emb.weight).any():
-                nn.init.normal_(emb.weight, mean=0.0, std=0.01)
+    nan_count = sum(
+        torch.isnan(proj.weight).any().item()
+        for proj in model.num_proj.proj
+    )
+    print(f"[init_check] NaN in num_proj: {nan_count}/{len(model.num_proj.proj)}")
 
-    print("[init_check] Weights checked, NaN replaced with xavier/normal init")
+    if matcher_a is not None and hasattr(matcher_a, 'source_col_to_backbone'):
+        skip_cols = {'Unnamed: 0'}
+        num_features_clean = [c for c in (num_features or []) if c not in skip_cols]
+        keep_idx = [i for i, c in enumerate(num_features or []) if c not in skip_cols]
+        num_train_clean = num_train[:, keep_idx] if num_train is not None else num_train
+        dataset_name = TT.get("dataset_name", None)
+
+        similarity = matcher_a._compute_similarity(
+            num_train_clean, num_features_clean, dataset_name=dataset_name
+        )
+
+        match_indices_init = matcher_a.get_match_indices_hungarian(
+            num_train_clean, num_features_clean,
+            cat_features or [], min_similarity=0.55,
+            dataset_name=dataset_name
+        )
+
+        loaded_backbones = {}
+        print("[weight_init] Combined init num_proj (backbone + stat):")
+        for target_idx, source_idx in match_indices_init['num'].items():
+            source_col = matcher_a.source_col_names[source_idx]
+            info = matcher_a.source_col_to_backbone.get(source_col, {})
+            bb_path = info.get("backbone_path", None)
+            local_idx = info.get("local_idx", source_idx)
+
+            if bb_path is None or not os.path.exists(bb_path):
+                continue
+
+            if bb_path not in loaded_backbones:
+                loaded = torch.load(bb_path, map_location=device, weights_only=False)
+                loaded_backbones[bb_path] = loaded.state_dict() if hasattr(loaded, 'state_dict') else loaded
+
+            source_state = loaded_backbones[bb_path]
+            src_key_w = f"num_proj.proj.{local_idx}.weight"
+            src_key_b = f"num_proj.proj.{local_idx}.bias"
+
+            if src_key_w not in source_state:
+                continue
+
+            alpha = float(similarity[target_idx, source_idx])
+            alpha = max(0.3, min(0.9, alpha))
+            beta = 1.0 - alpha
+
+            src_w = source_state[src_key_w].clone()
+            src_b = source_state[src_key_b].clone()
+            cur_w = model.num_proj.proj[target_idx].weight.data
+            cur_b = model.num_proj.proj[target_idx].bias.data
+
+            model.num_proj.proj[target_idx].weight.data = alpha * src_w + beta * cur_w
+            model.num_proj.proj[target_idx].bias.data = alpha * src_b + beta * cur_b
+
+            t_name = num_features_clean[target_idx] if target_idx < len(num_features_clean) else f"num[{target_idx}]"
+            print(f"  {t_name:25s} ← {source_col:25s} "
+                  f"(alpha={alpha:.2f}, from={os.path.basename(bb_path)})")
+
+        print(f"[weight_init] Done: {len(match_indices_init['num'])} features")
 
     # freeze necessary layers
     model.freeze_backbone(mode=freeze_mode)
@@ -509,15 +675,53 @@ def finetune_tabtransformer(
 
     source_embs = None
     lambda_align = TT.get("lambda_align", 0.05)
+    batch_size = TT.get("batch_size", 128)
     print("Lambda align: ", lambda_align)
 
     emb_path = backbone_checkpoint.replace(".pth", "_feature_embs.pth")
+
     if os.path.exists(emb_path) and lambda_align > 0:
         try:
             source_embs = torch.load(emb_path, map_location=device, weights_only=False)
-            print(f"[alignment_loss] Загружены эмбеддинги фичей Stage A: {emb_path}")
+            print(f"[alignment_loss] Loaded embeddings from: {emb_path}")
+
+            num_col_names = source_embs.get('num_col_names', [])
+            cat_col_names = source_embs.get('cat_col_names', [])
+
+            if len(num_col_names) == 0 and len(cat_col_names) == 0:
+                if matcher_a is not None and hasattr(matcher_a, 'source_col_names'):
+                    all_matcher_names = matcher_a.source_col_names
+                    n_num = source_embs['num'].shape[0] if 'num' in source_embs else 0
+                    n_cat = source_embs['cat'].shape[0] if 'cat' in source_embs else 0
+
+                    n_num_expected = len(num_features) if num_features else n_num
+                    n_cat_expected = len(cat_features) if cat_features else n_cat
+
+                    print(f"  [RECOVERY] No names in embeddings!")
+                    print(f"    num embeddings: {n_num}, cat embeddings: {n_cat}")
+                    print(f"    expected num: {n_num_expected}, expected cat: {n_cat_expected}")
+                    print(f"    matcher has {len(all_matcher_names)} names")
+
+                    source_embs['num_col_names'] = list(all_matcher_names[:n_num])
+                    source_embs['cat_col_names'] = list(all_matcher_names[n_num:n_num + n_cat])
+
+                    print(f"    Restored {len(source_embs['num_col_names'])} num names")
+                    print(f"    Restored {len(source_embs['cat_col_names'])} cat names")
+                    print(f"    First num: {source_embs['num_col_names'][:3]}")
+                    print(f"    First cat: {source_embs['cat_col_names'][:3]}")
+            else:
+                print(f"  Names already present in embeddings")
+
         except Exception as e:
-            print(f"[alignment_loss] Не удалось загрузить эмбеддинги: {e}")
+            print(f"[alignment_loss] Failed to load embeddings: {e}")
+            source_embs = None
+
+    # if os.path.exists(emb_path) and lambda_align > 0:
+    #     try:
+    #         source_embs = torch.load(emb_path, map_location=device, weights_only=False)
+    #         print(f"[alignment_loss] loaded features from Stage A: {emb_path}")
+    #     except Exception as e:
+    #         print(f"[alignment_loss] Can't load features: {e}")
 
     match_indices = None
     if source_embs is not None and lambda_align > 0 and matcher_a is not None:
@@ -527,11 +731,13 @@ def finetune_tabtransformer(
         keep_idx = [i for i, c in enumerate(num_features or []) if c not in skip_cols]
         num_train_clean = num_train[:, keep_idx] if num_train is not None else num_train
 
+        dataset_name = TT.get("dataset_name", None)
         match_indices = matcher_a.get_match_indices_hungarian(
             num_train_clean,
             num_features_clean,
             cat_features or [],
-            min_similarity=0.45
+            min_similarity=0.55,
+            dataset_name=dataset_name
         )
         print(f"[alignment_loss] match_indices: "
               f"num={len(match_indices['num'])}, cat={len(match_indices['cat'])}")
@@ -559,13 +765,29 @@ def finetune_tabtransformer(
             task_loss = loss_fn(out, y)
 
             # Alignment loss — sum with task_loss
-            if source_embs is not None and lambda_align > 0:
-                # target_embs = _extract_feature_embeddings(model, device)
-                target_embs = _extract_feature_embeddings_grad(model, device)
+            # if source_embs is not None and lambda_align > 0:
+            #     target_embs = _extract_feature_embeddings_grad(model, device)
+            #     a_loss = alignment_loss(
+            #         source_embs, target_embs,
+            #         lambda_align=lambda_align,
+            #         match_indices=match_indices,  # mapping from matcher
+            #     )
+            #     total_loss = task_loss + a_loss
+            #     align_val = a_loss.item()
+            # else:
+            #     total_loss = task_loss
+
+            if source_embs is not None and lambda_align > 0 and num is not None:
+                num_tokens = model.num_proj(num)  # [B, n_num, 64]
+                target_embs_batch = {'num': num_tokens.mean(dim=0)}  # [n_num, 64]
+                if cat is not None and len(model.cat_emb.embs) > 0:
+                    cat_tokens = model.cat_emb(cat)  # [B, n_cat, 64]
+                    target_embs_batch['cat'] = cat_tokens.mean(dim=0)  # [n_cat, 64]
+
                 a_loss = alignment_loss(
-                    source_embs, target_embs,
+                    source_embs, target_embs_batch,
                     lambda_align=lambda_align,
-                    match_indices=match_indices,  # mapping from matcher
+                    match_indices=match_indices,
                 )
                 total_loss = task_loss + a_loss
                 align_val = a_loss.item()
@@ -573,7 +795,26 @@ def finetune_tabtransformer(
                 total_loss = task_loss
 
             total_loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
+
+            # if model.num_proj is not None and source_embs is not None and lambda_align > 0:
+            #     print("lambda", lambda_align)
+            #     for p in model.num_proj.parameters():
+            #         if p.grad is not None:
+            #             p.grad *= lambda_align
+            #
+            #             print(f"[grad] num_proj grad norm after scale: {p.grad.norm():.6f}")
+            #
+            # num_proj_ids = {id(p) for p in model.num_proj.parameters()} if model.num_proj else set()
+            # torch.nn.utils.clip_grad_norm_(
+            #     [p for p in model.parameters() if id(p) not in num_proj_ids],
+            #     max_norm=1.0
+            # )
+            # torch.nn.utils.clip_grad_norm_(
+            #     model.num_proj.parameters(),
+            #     max_norm=5.0
+            # )
+
             opt.step()
 
             total_epoch_loss += task_loss.item() * len(y)
@@ -611,26 +852,95 @@ def finetune_tabtransformer(
     # load the best wights to the model
     model.load_state_dict(torch.load(save_path, map_location=device))
 
-    stage_embs = _extract_feature_embeddings(model, device)
+    stage_embs = _extract_feature_embeddings(
+                model, device,
+                num_features=num_features,
+                cat_features=cat_features
+            )
     stage_emb_path = save_path.replace(".pth", "_feature_embs.pth")
 
+    print(
+        f"[merge] num_col_names в source_embs: {source_embs.get('num_col_names', 'НЕТ')[:3] if source_embs.get('num_col_names') else 'НЕТ'}")
+
     if source_embs is not None and match_indices is not None and matcher_a is not None:
+
+        num_names_A = source_embs.get('num_col_names', [])
+        cat_names_A = source_embs.get('cat_col_names', [])
+        all_names_A = num_names_A + cat_names_A
+
+        num_names_B = num_features or []
+        cat_names_B = cat_features or []
+        all_names_B = num_names_B + cat_names_B
+
+        all_names_matcher = matcher_a.source_col_names if hasattr(matcher_a, 'source_col_names') else []
+
+        print(f"\n=== MERGE EMBEDDINGS ===")
+        print(f"embs_A names: {len(all_names_A)} total ({len(num_names_A)} num + {len(cat_names_A)} cat)")
+        print(f"embs_B names: {len(all_names_B)} total ({len(num_names_B)} num + {len(cat_names_B)} cat)")
+        print(f"matcher names: {len(all_names_matcher)} total")
+
+        if len(all_names_A) > 0:
+            print(f"embs_A first 3: {all_names_A[:3]}")
+            print(f"embs_A last 3: {all_names_A[-3:]}")
+        if len(all_names_matcher) > 0:
+            print(f"matcher first 3: {all_names_matcher[:3]}")
+            print(f"matcher last 3: {all_names_matcher[-3:]}")
+        print("=" * 25)
+
         merged = merge_embeddings(
             source_embs_A=source_embs,
             source_embs_B=stage_embs,
             match_indices=match_indices,
-            source_col_names_A=matcher_a.source_col_names,
-            source_col_names_B=(num_features or []) + (cat_features or []),
+            source_col_names_A=all_names_A,
+            source_col_names_B=all_names_B,
+            source_col_names_matcher=all_names_matcher,
             alpha=0.7
         )
+
+        if all_names_A:
+
+            merged_num_names = all_names_A[:len(num_names_A)] if num_names_A else []
+            merged_cat_names = all_names_A[len(num_names_A):] if num_names_A else all_names_A
+
+            for i, name in enumerate(all_names_B):
+                was_added = False
+                for i_B, i_matcher in match_indices.get('num', {}).items():
+                    if i_B == i and i_matcher < len(all_names_matcher):
+                        matched_name = all_names_matcher[i_matcher]
+                        if matched_name not in all_names_A:
+                            was_added = True
+                            break
+
+                if was_added and name not in merged_num_names and name not in merged_cat_names:
+                    if i < len(num_names_B):
+                        merged_num_names.append(name)
+                    else:
+                        merged_cat_names.append(name)
+
+            merged['num_col_names'] = merged_num_names
+            merged['cat_col_names'] = merged_cat_names
+
         torch.save(merged, stage_emb_path)
-        print(f"[merge_embeddings] Saved sum of embaddings: {stage_emb_path}")
-        print(f"  Stage last features: {len(matcher_a.source_col_names)}")
-        print(f"  Stage current features: {len((num_features or []) + (cat_features or []))}")
-        print(f"  After merge:   {merged['num'].shape[0]} features")
-    else:
-        torch.save(stage_embs, stage_emb_path)
-        print(f"[embeddings] Embedding were saved: {stage_emb_path}")
+        print(f"\n[merge_embeddings] Saved merged embeddings to: {stage_emb_path}")
+
+    # if source_embs is not None and match_indices is not None and matcher_a is not None:
+    #     merged = merge_embeddings(
+    #         source_embs_A=source_embs,
+    #         source_embs_B=stage_embs,
+    #         match_indices=match_indices,
+    #         source_col_names_A=(source_embs.get('num_col_names', []) +
+    #                             source_embs.get('cat_col_names', [])),
+    #         source_col_names_B=(num_features or []) + (cat_features or []),
+    #         alpha=0.7
+    #     )
+    #     torch.save(merged, stage_emb_path)
+    #     print(f"[merge_embeddings] Saved sum of embaddings: {stage_emb_path}")
+    #     print(f"  Stage last features: {len(matcher_a.source_col_names)}")
+    #     print(f"  Stage current features: {len((num_features or []) + (cat_features or []))}")
+    #     print(f"  After merge:   {merged['num'].shape[0]} features")
+    # else:
+    #     torch.save(stage_embs, stage_emb_path)
+    #     print(f"[embeddings] Embedding were saved: {stage_emb_path}")
 
     return model, save_path
 
@@ -660,6 +970,14 @@ def adapt_to_new_dataset(
     Return: (model, predict_proba[N, 2])
     """
     from .tab_transformers import TabTransformerModel
+
+    seed = 42
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
     mode_label = "Zero-shot" if mode == "zero_shot" else f"Proj-adapt ({adapt_epochs} эпох)"
     print(f"\n{'='*55}")
@@ -696,6 +1014,70 @@ def adapt_to_new_dataset(
     #The same thing as in finetune - init input layers based on statistics from features
     stat_based_init(model, num_data=num_data, cat_data=cat_data, device=device)
 
+    match_indices = None
+    dataset_name = TT.get("dataset_name", None)
+
+    if matcher is not None and num_features is not None:
+        match_indices = matcher.get_match_indices_hungarian(
+            num_data,
+            num_features or [],
+            cat_features or [],
+            min_similarity=0.55,
+            dataset_name=dataset_name
+        )
+
+        print(f"[proj_adapt] match_indices: "
+              f"num={len(match_indices['num'])}, "
+              f"cat={len(match_indices['cat'])}")
+
+    if match_indices is not None and hasattr(matcher, 'source_col_to_backbone'):
+
+        similarity = matcher._compute_similarity(
+            num_data, num_features or [], dataset_name=TT.get("dataset_name")
+        )
+
+        loaded_backbones = {}
+        print("[weight_init] Combined init num_proj (backbone + stat):")
+
+        for target_idx, source_idx in match_indices['num'].items():
+            source_col = matcher.source_col_names[source_idx]
+            info = matcher.source_col_to_backbone.get(source_col, {})
+
+            bb_path = info.get("backbone_path", None)
+            local_idx = info.get("local_idx", source_idx)
+
+            if bb_path is None or not os.path.exists(bb_path):
+                continue
+
+            if bb_path not in loaded_backbones:
+                loaded = torch.load(bb_path, map_location=device, weights_only=False)
+                loaded_backbones[bb_path] = loaded.state_dict() if hasattr(loaded, 'state_dict') else loaded
+
+            source_state = loaded_backbones[bb_path]
+            src_key_w = f"num_proj.proj.{local_idx}.weight"
+            src_key_b = f"num_proj.proj.{local_idx}.bias"
+
+            if src_key_w not in source_state:
+                continue
+
+            alpha = float(similarity[target_idx, source_idx])
+            alpha = max(0.3, min(0.9, alpha))
+            beta = 1.0 - alpha
+
+            src_w = source_state[src_key_w].clone()
+            src_b = source_state[src_key_b].clone()
+            cur_w = model.num_proj.proj[target_idx].weight.data
+            cur_b = model.num_proj.proj[target_idx].bias.data
+
+            model.num_proj.proj[target_idx].weight.data = alpha * src_w + beta * cur_w
+            model.num_proj.proj[target_idx].bias.data = alpha * src_b + beta * cur_b
+
+            t_name = (num_features or [])[target_idx] if target_idx < len(num_features or []) else f"num[{target_idx}]"
+            print(f"  {t_name:25s} ← {source_col:25s} "
+                  f"(alpha={alpha:.2f}, from={os.path.basename(bb_path)})")
+
+        print(f"[weight_init] Done: {len(match_indices['num'])} features")
+
     if mode == "zero_shot":
         # only inference
         model.freeze_backbone("full")
@@ -708,15 +1090,23 @@ def adapt_to_new_dataset(
         print("Current mode: ", freeze_mode)
         assert y_data is not None, "proj_adapt requires y_data (target for dataset)"
 
-        # adapt_params = (
-        #     list(model.cat_emb.parameters()) +
-        #     (list(model.num_proj.parameters()) if model.num_proj else []) +
-        #     list(model.cls.parameters())
-        # )
-
         adapt_params = [p for p in model.parameters() if p.requires_grad]
 
         opt = torch.optim.Adam(adapt_params, lr=TT["lr"] * 0.3)
+
+        lambda_align = TT.get("lambda_align", 0.05)
+        batch_size = TT.get("batch_size", 128)
+
+        # num_proj_params = list(model.num_proj.parameters()) if model.num_proj else []
+        # other_params = [p for p in model.parameters()
+        #                 if p.requires_grad and
+        #                 not any(p is np_p for np_p in num_proj_params)]
+        #
+        # opt = torch.optim.Adam([
+        #     {'params': other_params, 'lr': TT["lr"] * 0.3},
+        #     {'params': num_proj_params, 'lr': TT["lr"] * 2}
+        # ], )
+
         # loss_fn = torch.nn.BCELoss()
 
 
@@ -731,11 +1121,7 @@ def adapt_to_new_dataset(
             return (bce * weights).mean()
 
         source_embs = None
-        match_indices = None
-        lambda_align = TT.get("lambda_align", 0.05)
-
         emb_path = backbone_checkpoint.replace(".pth", "_feature_embs.pth")
-        matcher_path = backbone_checkpoint.replace(".pth", "_matcher.pkl")
 
         if os.path.exists(emb_path) and lambda_align > 0:
             try:
@@ -744,17 +1130,6 @@ def adapt_to_new_dataset(
             except Exception as e:
                 print(f"[proj_adapt] Failed with loading embaddings: {e}")
 
-        if source_embs is not None and matcher is not None and num_features is not None:
-
-            match_indices = matcher.get_match_indices_hungarian(
-                num_data,
-                num_features or [],
-                cat_features or [],
-                min_similarity=0.5
-            )
-            print(f"[proj_adapt] match_indices: "
-                  f"num={len(match_indices['num'])}, "
-                  f"cat={len(match_indices['cat'])}")
 
         adapt_ds = TabDataset(cat_data, num_data, y_data)
         adapt_loader = DataLoader(adapt_ds, batch_size=TT["batch_size"], shuffle=True)
@@ -762,13 +1137,14 @@ def adapt_to_new_dataset(
         print(f"[alignment_loss] Using match_indices:")
         print(f"  num pairs: {len(match_indices['num'])}")
         print(f"  cat pairs: {len(match_indices['cat'])}")
-        for i, j in list(match_indices['num'].items())[:5]:  # первые 5
+
+        for i, j in list(match_indices['num'].items())[:5]:
             t = (num_features or [])[i] if i < len(num_features or []) else f"num[{i}]"
             s = matcher.source_col_names[j]
             print(f"    {t} → {s}")
 
         adapt_start = time.time()
-
+        align_val = 0.0
         for epoch in range(adapt_epochs):
             model.train()
             total_loss = 0.0
@@ -784,10 +1160,32 @@ def adapt_to_new_dataset(
                 out = model(cat, num)
                 task_loss = loss_fn(out, y)
 
+
+                # if source_embs is not None and match_indices is not None and lambda_align > 0:
+                #     target_embs = _extract_feature_embeddings_grad(model, device)
+                #     a_loss = alignment_loss(
+                #         source_embs, target_embs,
+                #         lambda_align=lambda_align,
+                #         match_indices=match_indices,
+                #         batch_size=batch_size
+                #     )
+                #
+                #     total = task_loss + a_loss
+                #     align_val = a_loss.item()
+                # else:
+                #     total = task_loss
+
                 if source_embs is not None and match_indices is not None and lambda_align > 0:
-                    target_embs = _extract_feature_embeddings_grad(model, device)
+                    num_tokens = model.num_proj(num)  # [B, n_num, D]
+                    target_embs_batch = {
+                        'num': num_tokens.mean(dim=0)  # [n_num, D]
+                    }
+                    if cat is not None and len(model.cat_emb.embs) > 0:
+                        cat_tokens = model.cat_emb(cat)  # [B, n_cat, D]
+                        target_embs_batch['cat'] = cat_tokens.mean(dim=0)  # [n_cat, D]
+
                     a_loss = alignment_loss(
-                        source_embs, target_embs,
+                        source_embs, target_embs_batch,
                         lambda_align=lambda_align,
                         match_indices=match_indices,
                     )
@@ -797,12 +1195,18 @@ def adapt_to_new_dataset(
                     total = task_loss
 
                 total.backward()
+
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(),
+                    max_norm=10.0
+                )
                 opt.step()
                 total_loss += task_loss.item() * len(y)
 
+
             avg = total_loss / len(adapt_loader.dataset)
             align_str = f" | align={align_val:.4f}" if source_embs is not None else ""
-            print(f"  Adapt epoch {epoch+1}/{adapt_epochs} | loss={avg:.4f}")
+            print(f"  Adapt epoch {epoch + 1}/{adapt_epochs} | loss={avg:.4f}{align_str}")
 
         adapt_time = time.time() - adapt_start
         print(f"\n[proj_adapt] Total adapt time: {adapt_time:.1f}s "

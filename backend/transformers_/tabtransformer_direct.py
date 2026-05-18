@@ -9,13 +9,16 @@ from scipy.optimize import linear_sum_assignment
 import tempfile
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.feature_extraction.text import TfidfVectorizer
 from .tab_transformers import compute_feature_stats, _normalize_for_stats
 import time
+import glob
+
 
 class FeatureSemanticMatcher:
     """
-    fit(X_source, col_names)  — запомнить статистики и названия фичей датасета A
-    match(X_target, col_names) — вернуть матрицу сходства [n_target, n_source]
+    fit(X_source, col_names)  —  remember the statistics and feature names of the A dataset
+    match(X_target, col_names) — return the similarity matrix [n_target, n_source]
     """
 
     def __init__(self, alpha: float = 0.8, beta: float = 0.2, model_name="paraphrase-multilingual-MiniLM-L12-v2"):
@@ -26,32 +29,33 @@ class FeatureSemanticMatcher:
         self.source_col_names = None
         self._vectorizer = None
         self._source_name_embs = None
-        self._bert = SentenceTransformer(model_name)
+        self._bert = SentenceTransformer(model_name, model_kwargs={"use_safetensors": True})
 
     #todo add BERT for semantic.
-    def fit(self, X_source: np.ndarray, col_names: list, dataset_name=None) -> "FeatureSemanticMatcher":
+    def fit(self, X_source: np.ndarray, col_names: list, dataset_name=None, backbone_path=None) -> "FeatureSemanticMatcher":
 
         self.source_col_names = list(col_names)
         self.source_stats = compute_feature_stats(_normalize_for_stats(X_source))
+        self.backbone_path = backbone_path
         self.source_dataset_name = dataset_name
-
-        print("[fit] source_stats (skew, kurt) для первых 5 фичей:")
-        for i, name in enumerate(col_names[:5]):
-            print(f"  {name}: skew={self.source_stats[i][2]:.3f}, kurt={self.source_stats[i][3]:.3f}")
+        self.source_col_indices = {col: i for i, col in enumerate(col_names)}
 
         names = self.get_enriched_names(col_names, dataset_name)
+        print(f"[fit] example: '{col_names[0]}' → '{names[0]}'")
 
         try:
             print("[FeatureSemanticMatcher] BERT (multilingual)...")
             self._bert = SentenceTransformer(
-                "paraphrase-multilingual-MiniLM-L12-v2"
+                "paraphrase-multilingual-MiniLM-L12-v2", model_kwargs={"use_safetensors": True}
             )
-            self._source_name_embs = self._bert.encode(
-                names, show_progress_bar=False
-            )  # [n_features, 384]
+            self._source_name_embs = self._bert.encode(names, show_progress_bar=False)  # [n_features, 384]
+
+            norms = np.linalg.norm(self._source_name_embs, axis=1, keepdims=True)
+            self._source_name_embs = self._source_name_embs / (norms + 1e-8)
+            print(f"[fit] emb norm after normalize: {np.linalg.norm(self._source_name_embs[0]):.3f}")
+
             self._use_bert = True
         except ImportError:
-            from sklearn.feature_extraction.text import TfidfVectorizer
             print("[FeatureSemanticMatcher] sentence-transformers is not installed, "
                   "using TF-IDF")
             self._vectorizer = TfidfVectorizer(analyzer="char_wb", ngram_range=(2, 4))
@@ -66,10 +70,6 @@ class FeatureSemanticMatcher:
         assert self.source_stats is not None, "Error with fit"
 
         target_stats = compute_feature_stats(_normalize_for_stats(X_target))
-
-        print("[match] target_stats (skew, kurt):")
-        for i, name in enumerate(target_col_names[:5]):
-            print(f"  {name}: skew={target_stats[i][2]:.3f}, kurt={target_stats[i][3]:.3f}")
 
         target_names = self.get_enriched_names(target_col_names, dataset_name)
 
@@ -100,14 +100,6 @@ class FeatureSemanticMatcher:
         for i in range(n_t_num, n_t):
             similarity[i] = sem_sim[i]
 
-        age_idx = target_col_names.index('age') if 'age' in target_col_names else None
-        if age_idx is not None:
-            print(f"\n[debug] age similarities:")
-            for j, src_name in enumerate(self.source_col_names):
-                if sem_sim[age_idx, j] > 0.3:
-                    print(
-                        f"  {src_name}: sem={sem_sim[age_idx, j]:.3f}, dist={dist_sim[age_idx, j]:.3f}, total={similarity[age_idx, j]:.3f}")
-
         if verbose:
             print("\n=== Feature Alignment ===")
             for i, t_name in enumerate(target_col_names):
@@ -121,7 +113,6 @@ class FeatureSemanticMatcher:
         return similarity.astype(np.float32)
 
     def _compute_similarity(self, X_target, target_col_names, dataset_name=None):
-        from sklearn.metrics.pairwise import cosine_similarity
 
         target_names = self.get_enriched_names(target_col_names, dataset_name)
 
@@ -145,7 +136,20 @@ class FeatureSemanticMatcher:
                     val = 1.0 / (1.0 + np.linalg.norm(t_n - s_n))
                     dist_sim[i, j] = 0.0 if np.isnan(val) else val
 
+                    if target_col_names[i] == 'Score_bki' and self.source_col_names[j] == 'bureau_bb_months_min':
+                        print(f"[debug] Score_bki vs bureau_bb_months_min:")
+                        print(f"  t_stats: {target_stats[i]}")
+                        print(f"  s_stats: {self.source_stats[j]}")
+                        print(f"  t_n: {t_n}")
+                        print(f"  s_n: {s_n}")
+                        print(f"  dist: {np.linalg.norm(t_n - s_n):.4f}")
+                        print(f"  val: {val:.4f}")
+
         similarity = self.alpha * sem_sim + self.beta * dist_sim
+
+        self._last_sem_sim = sem_sim
+        self._last_dist_sim = dist_sim
+
         return similarity.astype(np.float32)
 
     def match_hungarian(self, X_target, target_col_names, min_similarity=0.5, dataset_name=None):
@@ -157,22 +161,43 @@ class FeatureSemanticMatcher:
         # Hungarian algorithn
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
 
+        if 'age' in target_col_names:
+            i = target_col_names.index('age')
+            top5 = np.argsort(similarity[i])[::-1][:5]
+            print(f"[debug] age top-5 before Hungarian:")
+            for j in top5:
+                print(f"  {self.source_col_names[j]}: {similarity[i, j]:.3f}")
+
         result = {}
         for i, j in zip(row_ind, col_ind):
             sim = similarity[i, j]
+            sem = self._last_sem_sim[i, j]
+            dist = self._last_dist_sim[i, j]
 
             if sim < min_similarity:
-                print(f"  ✗ {target_col_names[i]:25s} → not found (max={sim:.3f})")
+                best_j = np.argmax(self._last_sem_sim[i])
+                print(f"  ✗ {target_col_names[i]:25s} → not found "
+                      f"(max_total={sim:.3f}, max_sem={self._last_sem_sim[i, j]:.3f}, "
+                      f"max_stat={self._last_dist_sim[i, j]:.3f})")
                 continue
 
-            flag = "✓" if sim > 0.6 else "~"
-            print(f"  {flag} {target_col_names[i]:25s} → {self.source_col_names[j]:25s} (total={sim:.3f})")
+            min_sem = 0.5
+            if sem < min_sem:
+                print(f"  ✗ {target_col_names[i]:25s} → sem too low "
+                      f"(sem={sem:.3f} < {min_sem}, total={sim:.3f})")
+                continue
+
+            flag = "✓" if sim > 0.65 else "~"
+            print(f"  {flag} {target_col_names[i]:25s} → {self.source_col_names[j]:25s} "
+                  f"(total={sim:.3f}, sem={self._last_sem_sim[i, j]:.3f}, stat={self._last_dist_sim[i, j]:.3f})")
             result[target_col_names[i]] = self.source_col_names[j]
 
         return result  # {new_col: old_col} only correct features
 
     def get_match_indices_hungarian(self, X_target, num_col_names,
-                                    cat_col_names, min_similarity=0.5, dataset_name=None):
+                                    cat_col_names, min_similarity=0.72, dataset_name=None):
+
+        print(f"[get_match_indices_hungarian] dataset_name={dataset_name}")
 
         all_cols = num_col_names + cat_col_names
 
@@ -249,7 +274,22 @@ class FeatureSemanticMatcher:
 
     @classmethod
     def load(cls, path: str) -> "FeatureSemanticMatcher":
-        with open(path, "rb") as f: return pickle.load(f)
+        with open(path, "rb") as f:
+            obj = pickle.load(f)
+
+        print(f"[Matcher.load] source_col_names[:3]: {obj.source_col_names[:3]}")
+        if hasattr(obj, 'source_dataset_name'):
+            print(f"[Matcher.load] source_dataset_name: {obj.source_dataset_name}")
+        else:
+            print(f"[Matcher.load] source_dataset_name: NOT SET (old pkl without descriptions)")
+
+        if 'DAYS_BIRTH' in obj.source_col_names:
+            idx = obj.source_col_names.index('DAYS_BIRTH')
+            emb = obj._source_name_embs[idx]
+            print(f"[Matcher.load] DAYS_BIRTH emb[:5]: {emb[:5]}")
+            print(f"[Matcher.load] DAYS_BIRTH emb norm: {np.linalg.norm(emb):.3f}")
+
+        return obj
 
     @classmethod
     def merge(cls, matchers: list, alpha: float = 0.8, beta: float = 0.2) -> "FeatureSemanticMatcher":
@@ -267,6 +307,8 @@ class FeatureSemanticMatcher:
         all_stats = []
         all_embs = []
 
+        meta.source_col_to_backbone = {}
+
         for m in matchers:
             for i, col in enumerate(m.source_col_names):
                 if col in seen_cols:
@@ -275,6 +317,11 @@ class FeatureSemanticMatcher:
                 all_col_names.append(col)
                 all_stats.append(m.source_stats[i])
                 all_embs.append(m._source_name_embs[i])
+
+                meta.source_col_to_backbone[col] = {
+                    "backbone_path": getattr(m, "backbone_path", None),
+                    "local_idx": getattr(m, "source_col_indices", {}).get(col, i)
+                }
 
         meta.source_col_names = all_col_names
         meta.source_stats = np.vstack(all_stats)
@@ -290,8 +337,15 @@ class FeatureSemanticMatcher:
     @staticmethod
     def get_enriched_names(col_names: list, dataset_name: str = None) -> list:
         try:
-            from .feature_descriptions import get_enriched_names
-            return get_enriched_names(col_names, dataset_name)
+            from .feature_descriptions import get_enriched_names as _get_enriched
+            result = _get_enriched(col_names, dataset_name)
+            if dataset_name:
+                print(f"[enriched_names] dataset={dataset_name}, example:")
+                print(f"  '{col_names[0]}' → '{result[0]}'")
+            else:
+                print(f"[enriched_names] no dataset_name → plain names")
+                print(f"  '{col_names[0]}' → '{result[0]}'")
+            return result
         except ImportError:
             return [n.lower().replace("_", " ") for n in col_names]
 
@@ -312,6 +366,7 @@ class DirectTabTransformer:
         self.freeze_mode_ = params.get("freeze_mode", "last_layer")  # "full"|"last_layer"|"none"
         self.adapt_epochs_ = params.get("adapt_epochs", 5)
         self.dataset_name_ = params.get("dataset_name", None)
+        self.matcher_ = None
 
 
     def prepare_data(self, X, y=None, X_val=None, y_val=None, fit=False):
@@ -418,7 +473,9 @@ class DirectTabTransformer:
             "early_stopping_patience": self.params.get("early_stopping_patience", 10),
             "warmup_ratio": self.params.get("warmup_ratio", 0.1),
             "lambda_align": self.params.get("lambda_align", 0.0),
-            "freeze_mode": self.params.get("freeze_mode", "full")
+            "freeze_mode": self.params.get("freeze_mode", "full"),
+            "dataset_name": self.params.get("dataset_name", None),
+            "model_name": self.params.get("model_name", "tabtransformer_finetune_none")
         }
 
         y_train_arr = y_train.values if hasattr(y_train, "values") else y_train
@@ -430,7 +487,7 @@ class DirectTabTransformer:
             # Fit matcher on current dataset
             # self.matcher_ = FeatureSemanticMatcher()
             self.matcher_ = FeatureSemanticMatcher(
-                model_name="paraphrase-multilingual-MiniLM-L12-v2"  # ← FinBERT от Prosus
+                model_name="paraphrase-multilingual-MiniLM-L12-v2"
             )
             num_for_match = num_train if num_train is not None else cat_train
             # col_names = (self.num_features_ or []) + (self.cat_features_ or [])
@@ -439,7 +496,14 @@ class DirectTabTransformer:
             cat_col_names = self.cat_features_ or []
 
             if num_for_match is not None and num_col_names:
-                self.matcher_.fit(num_for_match, num_col_names, dataset_name=self.dataset_name_)
+
+                model_name = self.params.get("model_name", "tabtransformer_finetune_none")
+                models_dir = os.path.dirname(self.backbone_path_) if self.backbone_path_ else os.path.join(
+                    os.path.dirname(os.path.abspath(__file__)), "..", "..", "models", "transformers_"
+                )
+                current_model_path = os.path.join(models_dir, f"{model_name}.pth")
+
+                self.matcher_.fit(num_for_match, num_col_names, dataset_name=self.dataset_name_, backbone_path=current_model_path)
 
                 # categorical features only  BERT, stats = zeros
                 if cat_col_names and self.matcher_._use_bert:
@@ -451,7 +515,7 @@ class DirectTabTransformer:
                     self.matcher_.source_col_names += cat_col_names
                     self.matcher_.source_stats = np.vstack([
                         self.matcher_.source_stats,
-                        np.zeros((len(cat_col_names), 8), dtype=np.float32)
+                        np.zeros((len(cat_col_names), 9), dtype=np.float32)
                     ])
                     self.matcher_._source_name_embs = np.vstack([
                         self.matcher_._source_name_embs,
@@ -470,37 +534,22 @@ class DirectTabTransformer:
                 #         "..", "..", "models", "transformers_", "matcher.pkl"
                 #     )
 
+                model_name = self.params.get("model_name", "tabtransformer_stageA_hc")
+                BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
                 if self.backbone_path_:
-                    if self.transfer_mode_ == "finetune":
-                        matcher_path = self.backbone_path_.replace(".pth", "_stageB_matcher.pkl")
-                    else:
-                        matcher_path = self.backbone_path_.replace(".pth", "_matcher.pkl")
+                    models_dir = os.path.dirname(self.backbone_path_)
                 else:
-                    matcher_path = os.path.join(
-                        os.path.dirname(os.path.abspath(__file__)),
-                        "..", "..", "models", "transformers_", "matcher.pkl"
+                    models_dir = os.path.normpath(
+                        os.path.join(BASE_DIR, "..", "..", "models", "transformers_")
                     )
+
+                matcher_path = os.path.join(models_dir, f"{model_name}_matcher.pkl")
 
                 self.matcher_.save(matcher_path)
                 print(f"[Matcher] saved to: {matcher_path}")
 
-        elif self.transfer_mode_ in ("zero_shot", "proj_adapt"):
-            # load matcher из Stage A/B
-            if self.backbone_path_:
-                matcher_path = self.backbone_path_.replace(".pth", "_matcher.pkl")
-                if os.path.exists(matcher_path):
-                    self.matcher_ = FeatureSemanticMatcher.load(matcher_path)
-                    self.matcher_.alpha = 0.8
-                    self.matcher_.beta = 0.2
-                    num_for_match = num_train if num_train is not None else cat_train
-                    col_names = (self.num_features_ or []) + (self.cat_features_ or [])
-                    if num_for_match is not None and col_names:
-                        self.matcher_.match(num_for_match, col_names, verbose=True)
-                else:
-                    print(f"[Matcher] File was not found: {matcher_path}")
-
         if self.transfer_mode_ in (None, "pretrain"):
-            # Stage A — обычное обучение с нуля
             self.model_ = fit_tabtransformer(
                 cat_train=cat_train, num_train=num_train,
                 y_train=y_train_arr,
@@ -509,51 +558,35 @@ class DirectTabTransformer:
                 cardinalities=self.cardinalities_ or [],
                 TT=TT_config,
                 device=self.device_,
+                num_features=self.num_features_,
+                cat_features=self.cat_features_
             )
 
         elif self.transfer_mode_ == "finetune":
             # Stage finetune with transfer of backbone
-            assert self.backbone_path_,  "transfer_mode='finetune' требует backbone_path в параметрах"
-            matcher_path = self.backbone_path_.replace(".pth", "_matcher.pkl")
+            assert self.backbone_path_,  "transfer_mode='finetune' requires backbone_path in params"
             matcher_a = None
+            models_dir = os.path.dirname(self.backbone_path_)
+            all_matcher_files = sorted(glob.glob(
+                os.path.join(models_dir, "tabtransformer_stage*_matcher.pkl")
+            ))
+            print(f"[glob] found: {all_matcher_files}")
 
-            if os.path.exists(matcher_path):
-                matcher_current = FeatureSemanticMatcher.load(matcher_path)
-                matcher_current.beta = 0.2
+            all_matcher_files = [p for p in all_matcher_files
+                                 if model_name not in os.path.basename(p)]
 
-                all_matchers = [matcher_current]
-                best_matcher_path = os.path.join(
-                    os.path.dirname(self.backbone_path_),
-                    "tabtransformer_best_matcher.pkl"
-                )
-                if os.path.exists(best_matcher_path) and best_matcher_path != matcher_path:
-                    matcher_best = FeatureSemanticMatcher.load(best_matcher_path)
-                    matcher_best.alpha = 0.8
-                    matcher_best.beta = 0.2
-                    all_matchers.append(matcher_best)
-
-                if len(all_matchers) > 1:
-                    matcher_a = FeatureSemanticMatcher.merge(all_matchers)
-                else:
-                    matcher_a = matcher_current
-
-                print(f"Matcher source cols ({len(matcher_a.source_col_names)}): {matcher_a.source_col_names[:5]}")
-
-                print(f"[Matcher] source_cols ({len(matcher_a.source_col_names)}): {matcher_a.source_col_names}")
-                print(f"[Matcher] source_stats shape: {matcher_a.source_stats.shape}")
-
-                skip_cols = {'Unnamed: 0'}
-                num_features_clean = [c for c in (self.num_features_ or []) if c not in skip_cols]
-                col_names_b = num_features_clean + (self.cat_features_ or [])
-
-                if num_train is not None:
-                    keep_idx = [i for i, c in enumerate(self.num_features_ or []) if c not in skip_cols]
-                    num_for_match = num_train[:, keep_idx]
-                else:
-                    num_for_match = cat_train
-
-                print("\n=== Feature mapping: Stage A → Stage B ===")
-                matcher_a.match(num_for_match, col_names_b, verbose=True, dataset_name=self.dataset_name_)
+            if all_matcher_files:
+                all_matchers = []
+                for p in all_matcher_files:
+                    m = FeatureSemanticMatcher.load(p)
+                    m.alpha = 0.8
+                    m.beta = 0.2
+                    all_matchers.append(m)
+                matcher_a = FeatureSemanticMatcher.merge(all_matchers)
+                print(f"[Matcher] loaded {len(all_matchers)} matchers → "
+                      f"{len(matcher_a.source_col_names)} cols")
+            else:
+                matcher_a = self.matcher_
 
             self.model_, _ = finetune_tabtransformer(
                 cat_train=cat_train, num_train=num_train,
@@ -565,7 +598,7 @@ class DirectTabTransformer:
                 backbone_checkpoint=self.backbone_path_,
                 freeze_mode=self.freeze_mode_,
                 device=self.device_,
-                matcher_a=matcher_a if os.path.exists(matcher_path) else self.matcher_,
+                matcher_a=matcher_a if matcher_a is not None else self.matcher_,
                 num_features=self.num_features_,
                 cat_features=self.cat_features_,
             )
@@ -575,34 +608,23 @@ class DirectTabTransformer:
             assert self.backbone_path_, "transfer_mode='zero_shot'/'proj_adapt' requires backbone_path"
 
             matcher_for_adapt = self.matcher_  # fallback
+            models_dir = os.path.dirname(self.backbone_path_)
+            all_matcher_files = sorted(glob.glob(
+                os.path.join(models_dir, "tabtransformer_stage*_matcher.pkl")
+            ))
 
-            matcher_path = self.backbone_path_.replace(".pth", "_matcher.pkl")
-            if os.path.exists(matcher_path):
-                matcher_current = FeatureSemanticMatcher.load(matcher_path)
-                matcher_current.alpha = 0.8
-                matcher_current.beta = 0.2
-
-                all_matchers = [matcher_current]
-
-                # Stage A matcher (tabtransformer_best_matcher.pkl)
-                best_matcher_path = os.path.join(
-                    os.path.dirname(self.backbone_path_),
-                    "tabtransformer_best_matcher.pkl"
-                )
-                if os.path.exists(best_matcher_path) and best_matcher_path != matcher_path:
-                    matcher_best = FeatureSemanticMatcher.load(best_matcher_path)
-                    matcher_best.alpha = 0.8
-                    matcher_best.beta = 0.2
-                    all_matchers.append(matcher_best)
-
-                # concat if many
-                if len(all_matchers) > 1:
-                    matcher_for_adapt = FeatureSemanticMatcher.merge(all_matchers)
-                else:
-                    matcher_for_adapt = matcher_current
-
-                print(f"[Matcher] loaded {len(all_matchers)} matchers, "
-                      f"total source cols: {len(matcher_for_adapt.source_col_names)}")
+            if all_matcher_files:
+                all_matchers = []
+                for p in all_matcher_files:
+                    m = FeatureSemanticMatcher.load(p)
+                    m.alpha = 0.8
+                    m.beta = 0.2
+                    all_matchers.append(m)
+                matcher_for_adapt = FeatureSemanticMatcher.merge(all_matchers)
+                print(f"[Matcher] loaded {len(all_matchers)} matchers → "
+                      f"{len(matcher_for_adapt.source_col_names)} cols")
+            else:
+                print(f"[Matcher] no stage matchers found in {models_dir}")
 
             self.model_, _ = adapt_to_new_dataset(
                 cat_data=cat_train, num_data=num_train,
@@ -620,8 +642,8 @@ class DirectTabTransformer:
 
         else:
             raise ValueError(
-                f"Неизвестный transfer_mode: {self.transfer_mode_!r}. "
-                f"Допустимые: None, 'pretrain', 'finetune', 'zero_shot', 'proj_adapt'"
+                f"Not correct transfer_mode: {self.transfer_mode_!r}. "
+                f"Available: None, 'pretrain', 'finetune', 'zero_shot', 'proj_adapt'"
             )
 
         return self

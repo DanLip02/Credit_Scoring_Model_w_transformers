@@ -1,0 +1,1 @@
+{"categorical": ["education_cd", "car_own_flg", "Air_flg", "gender_cd", "car_type_flg"], "binary": ["app_quarter", "good_work_flg"], "numerical": ["id", "Score_bki", "log_income", "first_time_cd", "log_out_req", "region_rating_ord", "SNA", "app_month", "log_appl_rej", "work_address_cd", "age", "home_address_cd"]}

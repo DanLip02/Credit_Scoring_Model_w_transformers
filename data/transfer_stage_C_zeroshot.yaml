@@ -59,7 +59,7 @@ model:
           # Никакого обучения — чистый zero-shot
           transfer_mode: 'zero_shot'
 
-          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_finetune_none.pth
+          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_stageB_gmc.pth
 
 metrics:
   base:

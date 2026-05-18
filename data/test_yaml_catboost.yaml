@@ -12,11 +12,13 @@ run:
 
 full_data:
   data:
-    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Give_risks\train_give_me_credit_baseline.csv     # path to xlsx
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_C\credit_scoring_full_raw.csv     # path to xlsx
     sheet_name: "sheet_name"                 # sheet_name
-    target: "SeriousDlqin2yrs"             # target
+    target: "target"            # target
 #    skiprows: 7
     dropna: False                       # drop rows with NaN
+    drop_columns:
+      - "Customer_ID"
 #    skip: "skip"
 #    date_column: "report_date"
 #    filter_columns:
@@ -46,10 +48,10 @@ model:
       - name: cb
         type: CatBoostClassifier
         params:
-            iterations: 200
+            iterations: 2000
             depth: 6
-            learning_rate: 0.05
-#            auto_class_weights: 'Balanced'
+            learning_rate: 0.0001
+            auto_class_weights: 'Balanced'
             random_seed: 42
             verbose: 100
             early_stopping_rounds: 100

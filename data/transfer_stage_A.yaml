@@ -28,7 +28,7 @@ model:
   model_name: tabtransformer_stage_A
   framework: sklearn
   ensemble:
-    type: transformers           # обычный запуск — предобучение с нуля
+    type: transformers
     voting: soft
     final_estimator: null
     estimators:
@@ -36,35 +36,24 @@ model:
         type: Transformers
         params:
           dataset_name: "HomeCredit"
-          # ── Архитектура ──────────────────────────────────
-          # emb_dim должен совпадать между A, B и C
-          # менять его нельзя после предобучения
+          model_name: "tabtransformer_stageA_hc"
+
           embed_dim: 64
           n_heads: 8
           n_layers: 4
           mlp_dim: 256
 
-          # ── Регуляризация ────────────────────────────────
-          # На большом датасете dropout можно снизить
           dropout: 0.15
-          weight_decay: 0.01
+          weight_decay: 0.1
 
-          # ── Обучение ─────────────────────────────────────
-          # На 50k+ данных нужно больше эпох чем на маленьком
           lr: 0.001
-          batch_size: 512          # большой batch = стабильнее градиент на 50k
-          epochs: 30
+          batch_size: 128
+          epochs: 15
           early_stopping_patience: 10
-          warmup_ratio: 0.05
-
-          # ── Балансировка классов ─────────────────────────
+          warmup_ratio: 0.1
+          transfer_mode: 'pretrain'
           class_weight: 'balanced'
 
-          # ── Transfer learning ────────────────────────────
-          # Stage A: обычное обучение, transfer_mode не нужен
-          # Checkpoint будет сохранён автоматически как:
-          #   models/transformers_/tabtransformer_best.pth
-          # Этот путь нужно указать в backbone_path конфига Stage B
 
 metrics:
   base:

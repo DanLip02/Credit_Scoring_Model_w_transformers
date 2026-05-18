@@ -84,8 +84,6 @@ def prepare_features(df: pd.DataFrame, cfg: dict):
 
     df = df.sort_values(filter_col) if filter_col is not None else df
 
-    print(df.columns)
-
     if dropna is not False:
         df = clean_target(df, target_col, maps_num)
 
@@ -171,7 +169,6 @@ def load_data(cfg: dict):
 
     elif file_format == "csv":
         # sep = detect_sep(path, skiprows=skiprows)
-        # print(sep)
         # df = pd.read_csv(path, skiprows=skiprows, sep=';')
         df = pd.read_csv(path, skiprows=skiprows)
 
@@ -244,7 +241,6 @@ def split_data(target_col: pd.Series,
             random_state=params.get("random_state", 42),
             stratify=stratify_vals
         )
-        print("trouble after split")
         assert isinstance(X_train, pd.DataFrame), "X_train must be DataFrame"
         assert isinstance(X_test, pd.DataFrame), "X_test must be DataFrame"
 

@@ -1,0 +1,1 @@
+{"lr": 0.0001, "weight_decay": 0, "batch_size": 128, "num_epoch": 25, "eval_batch_size": 256, "num_training_steps": 15625.0, "eval_metric_name": "auc", "steps_per_epoch": 625}

@@ -48,25 +48,40 @@ def compute_feature_stats(X: np.ndarray) -> np.ndarray:
         q75, q25 = np.percentile(col_clean, [75, 25])
         skew = float(scipy_stats.skew(col_clean)) if use_scipy else 0.0
         kurt = float(scipy_stats.kurtosis(col_clean)) if use_scipy else 0.0
+
+        zero_ratio = float(np.mean(col_clean == 0))
+        unique_ratio = float(len(np.unique(col_clean)) / len(col_clean))
+        p5 = float(np.percentile(col_clean, 5))
+        p95 = float(np.percentile(col_clean, 95))
+
+        is_discrete = float(len(np.unique(col_clean)) < 20)
+
+        hist, _ = np.histogram(col_clean, bins=20, density=True)
+        hist = hist + 1e-8
+        hist = hist / hist.sum()
+        entropy = float(-np.sum(hist * np.log(hist + 1e-8)))
+
         result.append([
-            float(np.mean(col_clean)),
-            float(np.std(col_clean) + 1e-8),
-            skew, kurt,
-            float(np.min(col_clean)),
-            float(np.max(col_clean)),
-            float(np.median(col_clean)),
+            skew,
+            kurt,
             float(q75 - q25),
+            zero_ratio,
+            unique_ratio,
+            p5,
+            p95,
+            is_discrete,
+            entropy
         ])
-    return np.array(result, dtype=np.float32)  # [n_features, 8]
+    return np.array(result, dtype=np.float32)  # [n_features, 7]
 
 
 class FeatureStatEmbedder(nn.Module):
     """
-    Проецирует статистики фичи [8] → [emb_dim].
+    Проецирует статистики фичи [9] → [emb_dim].
     Using in stat_based_init for smarter init. of  NumProj/CatEmbeddings.
     """
 
-    def __init__(self, emb_dim: int, n_stats: int = 8):
+    def __init__(self, emb_dim: int, n_stats: int = 9):
         super().__init__()
         self.proj = nn.Sequential(
             nn.Linear(n_stats, emb_dim),
@@ -175,10 +190,10 @@ class TabTransformerModel(nn.Module):
         h = self.transformer(x)  # [B, seq_len, D]
 
         # pooled = h.mean(dim=1)  # [B, D]
-        # pooled = h[:, 0]
-        scores = self.pool_weights(h[:, 1:]).squeeze(-1)  # [B, seq_len]
-        weights = torch.softmax(scores, dim=-1).unsqueeze(-1)  # [B, seq_len, 1]
-        pooled = (h[:, 1:] * weights).sum(dim=1)
+        pooled = h[:, 0]
+        # scores = self.pool_weights(h[:, 1:]).squeeze(-1)  # [B, seq_len]
+        # weights = torch.softmax(scores, dim=-1).unsqueeze(-1)  # [B, seq_len, 1]
+        # pooled = (h[:, 1:] * weights).sum(dim=1)
 
         logit = self.cls(pooled).squeeze(1)  # [B]
 

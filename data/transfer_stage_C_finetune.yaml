@@ -4,7 +4,7 @@ run:
   split_type: base
   split_config:
     params:
-      test_size: 0.3         # 70% train, 30% test — честный сплит для файнтюна
+      test_size: 0.2         # 70% train, 30% test — честный сплит для файнтюна
       random_state: 42
       stratify: true
 
@@ -34,31 +34,29 @@ model:
       - name: tabtransformer_finetune_german
         type: Transformers
         params:
-          # ── Архитектура — совпадает с A и B ──────────────
+          dataset_name: "CreditScoring"
+          model_name: "tabtransformer_stageC_crs"
           embed_dim: 64
           n_heads: 8
           n_layers: 4
           mlp_dim: 256
 
-          # ── Регуляризация ─────────────────────────────────
-          # German Credit маленький (1k) → высокий dropout
-          dropout: 0.3
-          weight_decay: 0.02
+          dropout: 0.1
+          weight_decay: 0.05
 
-          # ── Обучение ──────────────────────────────────────
-          lr: 0.0003
-          batch_size: 64         # маленький батч — датасет маленький
-          epochs: 15
+          lr: 0.0001
+          batch_size: 128
+          epochs: 25
           early_stopping_patience: 15
-          warmup_ratio: 0.05
+          warmup_ratio: 0.1
           class_weight: "balanced"
 
           # ── Alignment Loss ────────────────────────────────
-          lambda_align: 0.2
+          lambda_align: 0.75
 
           # ── Transfer: backbone из Stage B ────────────────
           transfer_mode: "finetune"
-          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_finetune_none.pth
+          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_stageA_hc.pth
 
           # none — датасет маленький, всё должно адаптироваться
           # last_layer — если хочешь сохранить больше знаний из B

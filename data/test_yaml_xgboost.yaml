@@ -12,11 +12,12 @@ run:
 
 full_data:
   data:
-    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Give_risks\train_give_me_credit_baseline.csv     # path to xlsx
-    sheet_name: "sheet_name"                 # sheet_name
-    target: "SeriousDlqin2yrs"             # target
-#    skiprows: 7
-    dropna: False                       # drop rows with NaN
+    path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\data\Dataset_C\train_full.csv
+    sheet_name: "sheet_name"
+    target: "default_flg"
+    dropna: False
+    drop_columns:
+      - "id"
 #    skip: "skip"
 #    date_column: "report_date"
 #    filter_columns:
@@ -46,9 +47,9 @@ model:
       - name: cb
         type: XGBClassifier
         params:
-            n_estimators: 200
+            n_estimators: 2000
             max_depth: 5
-            learning_rate: 0.05
+            learning_rate: 0.0001
             scale_pos_weight: 6  # вес дефолта
             eval_metric: 'auc'
             random_state: 42

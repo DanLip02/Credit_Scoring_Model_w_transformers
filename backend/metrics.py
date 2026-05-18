@@ -21,8 +21,8 @@ def find_optimal_threshold(y_test, y_prob, fn_cost=5, fp_cost=1):
 
     print(f"[threshold] Перебираем {len(thresholds)} порогов на {len(y_test)} строках...")
 
-    if len(thresholds) > 1000:
-            idx = np.linspace(0, len(thresholds) - 1, 1000, dtype=int)
+    if len(thresholds) > 5000:
+            idx = np.linspace(0, len(thresholds) - 1, 5000, dtype=int)
             thresholds = thresholds[idx]
 
     total_cost = []
