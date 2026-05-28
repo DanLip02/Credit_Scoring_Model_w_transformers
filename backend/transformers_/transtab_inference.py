@@ -31,7 +31,6 @@ def print_metrics(y_true, y_pred_proba, threshold, label=""):
     auc = roc_auc_score(y_true, y_pred_proba)
 
     print(f"\n{'=' * 50}")
-    print(f"МЕТРИКИ TransTab ({label}, порог={threshold:.4f}):")
     print(f"{'=' * 50}")
     print(f"AUC:       {auc:.4f}")
     # print(f"KS:        {ks:.4f}")
@@ -41,7 +40,6 @@ def print_metrics(y_true, y_pred_proba, threshold, label=""):
     print(f"FPR:       {fpr_val:.4f}")
     print(f"TNR:       {tnr:.4f}")
     print(f"F1:        {f1:.4f}")
-    print(f"Матрица:   TN={tn}, FP={fp}, FN={fn}, TP={tp}")
     return auc
 
 def prepare_dataset(path, target_col, drop_cols):
@@ -90,9 +88,6 @@ def main():
         X_C, y_C, test_size=0.2, random_state=42, stratify=y_C
     )
 
-    print(f"\nTrain: {X_train_C.shape}, Test: {X_test_C.shape}")
-    print(f"Target rate: train={y_train_C.mean():.4f}, test={y_test_C.mean():.4f}")
-
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"\nDevice: {device}")
 
@@ -102,8 +97,6 @@ def main():
         binary_columns=bin_C,
     )
     model = model.to(device)
-
-    print("=" * 55)
 
     trainset_C = (X_train_C, y_train_C)
     valset = (X_test_C, y_test_C)
@@ -154,8 +147,8 @@ def main():
     best_threshold = pr_thresholds[np.argmax(f1_scores[:-1])]
     print(f"\nOptimal threshold (по F1): {best_threshold:.4f}")
 
-    auc_05 = print_metrics(y_test_C, y_pred_proba, threshold=0.5, label="порог 0.5")
-    auc_best = print_metrics(y_test_C, y_pred_proba, threshold=best_threshold, label="опт. порог")
+    auc_05 = print_metrics(y_test_C, y_pred_proba, threshold=0.5)
+    auc_best = print_metrics(y_test_C, y_pred_proba, threshold=best_threshold)
 
 
     print(f"{'=' * 50}")

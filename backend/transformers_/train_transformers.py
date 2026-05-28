@@ -12,16 +12,6 @@ import os
 import time
 import random
 import torch.nn.functional as F
-# TT = {
-#     "embed_dim": 32,
-#     "n_heads": 4,
-#     "n_layers": 2,
-#     "mlp_dim": 64,
-#     "dropout": 0.1,
-#     "lr": 1e-3,
-#     "batch_size": 128,
-#     "epochs": 20,
-# }
 
 class TabDataset(Dataset):
     def __init__(self, cat, num, y=None):
@@ -123,20 +113,26 @@ def merge_embeddings(source_embs_A, source_embs_B,
         embs_B = source_embs_B[key]
         merged = embs_A.clone()
 
+        # if key == 'num':
+        #     names_A = source_col_names_A[:n_num_A] if source_col_names_A else []
+        #     names_B = source_col_names_B[:n_num_B] if source_col_names_B else []
+        #     names_matcher = source_col_names_matcher[:n_num_A] if source_col_names_matcher else []
+        # else:  # cat
+        #     names_A = source_col_names_A[n_num_A:n_num_A + n_cat_A] if source_col_names_A else []
+        #     names_B = source_col_names_B[n_num_B:n_num_B + n_cat_B] if source_col_names_B else []
+        #     names_matcher = source_col_names_matcher[n_num_A:n_num_A + n_cat_A] if source_col_names_matcher else []
+
         if key == 'num':
             names_A = source_col_names_A[:n_num_A] if source_col_names_A else []
             names_B = source_col_names_B[:n_num_B] if source_col_names_B else []
-            names_matcher = source_col_names_matcher[:n_num_A] if source_col_names_matcher else []
-        else:  # cat
+        else:
             names_A = source_col_names_A[n_num_A:n_num_A + n_cat_A] if source_col_names_A else []
             names_B = source_col_names_B[n_num_B:n_num_B + n_cat_B] if source_col_names_B else []
-            names_matcher = source_col_names_matcher[n_num_A:n_num_A + n_cat_A] if source_col_names_matcher else []
+
+        names_matcher = source_col_names_matcher if source_col_names_matcher else []
 
         name_to_idx_A = {name: idx for idx, name in enumerate(names_A)}
 
-        matcher_idx_to_name = {idx: name for idx, name in enumerate(names_matcher)}
-
-        print(f"\n[merge] Processing '{key}' features:")
         print(f"  embs_A: {embs_A.shape}, names: {len(names_A)}")
         print(f"  embs_B: {embs_B.shape}, names: {len(names_B)}")
         print(f"  matcher names: {len(names_matcher)}")
@@ -215,6 +211,7 @@ def eval_loop(model, loader, device):
             y = batch["y"].to(device)
 
             #todo check why NaN in transfer learning:
+
             # if num is not None:
             #     print(f"num NaN: {torch.isnan(num).sum().item()}, inf: {torch.isinf(num).sum().item()}")
             # if cat is not None:
@@ -228,6 +225,7 @@ def eval_loop(model, loader, device):
 
             ys.append(y.cpu().numpy())
             preds.append(out.cpu().numpy())
+
     ys = np.concatenate(ys)
     preds = np.concatenate(preds)
     return ys, preds
@@ -747,6 +745,7 @@ def finetune_tabtransformer(
     #     num_for_match = num_train if num_train is not None else cat_train
     #     print("\n=== Feature Alignment (finetune) ===")
     #     matcher_a.match(num_for_match, col_names_target, verbose=True)
+
     train_start = time.time()
 
     for epoch in range(TT["epochs"]):
@@ -763,6 +762,8 @@ def finetune_tabtransformer(
 
             out = model(cat, num)
             task_loss = loss_fn(out, y)
+
+            #todo uncomment this if you need stronger robust model (less depends from alignment loss
 
             # Alignment loss — sum with task_loss
             # if source_embs is not None and lambda_align > 0:
@@ -797,13 +798,6 @@ def finetune_tabtransformer(
             total_loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0)
 
-            # if model.num_proj is not None and source_embs is not None and lambda_align > 0:
-            #     print("lambda", lambda_align)
-            #     for p in model.num_proj.parameters():
-            #         if p.grad is not None:
-            #             p.grad *= lambda_align
-            #
-            #             print(f"[grad] num_proj grad norm after scale: {p.grad.norm():.6f}")
             #
             # num_proj_ids = {id(p) for p in model.num_proj.parameters()} if model.num_proj else set()
             # torch.nn.utils.clip_grad_norm_(
