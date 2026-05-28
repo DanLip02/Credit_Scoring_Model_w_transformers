@@ -64,6 +64,19 @@ class FeatureSemanticMatcher:
 
         return self
 
+    def _compute_dist_sim(self, target_stats: np.ndarray, n_rows: int) -> np.ndarray:
+        n_s = len(self.source_col_names)
+        dist_sim = np.zeros((n_rows, n_s), dtype=np.float32)
+        n_num = len(target_stats)
+        for i in range(n_num):
+            for j in range(n_s):
+                if self.source_stats[j].any():
+                    t_n = (target_stats[i] - target_stats[i].mean()) / (target_stats[i].std() + 1e-8)
+                    s_n = (self.source_stats[j] - self.source_stats[j].mean()) / (self.source_stats[j].std() + 1e-8)
+                    val = 1.0 / (1.0 + np.linalg.norm(t_n - s_n))
+                    dist_sim[i, j] = 0.0 if np.isnan(val) else val
+        return dist_sim
+
     def match(self, X_target: np.ndarray, target_col_names: list,
               verbose: bool = True, dataset_name=None) -> np.ndarray:
 
@@ -126,24 +139,9 @@ class FeatureSemanticMatcher:
         target_stats = compute_feature_stats(_normalize_for_stats(X_target))
         n_t = len(target_col_names)
         n_s = len(self.source_col_names)
-        dist_sim = np.zeros((n_t, n_s), dtype=np.float32)
+        # dist_sim = np.zeros((n_t, n_s), dtype=np.float32)
 
-        for i in range(len(target_stats)):
-            for j in range(n_s):
-                if self.source_stats[j].any():
-                    t_n = (target_stats[i] - target_stats[i].mean()) / (target_stats[i].std() + 1e-8)
-                    s_n = (self.source_stats[j] - self.source_stats[j].mean()) / (self.source_stats[j].std() + 1e-8)
-                    val = 1.0 / (1.0 + np.linalg.norm(t_n - s_n))
-                    dist_sim[i, j] = 0.0 if np.isnan(val) else val
-
-                    if target_col_names[i] == 'Score_bki' and self.source_col_names[j] == 'bureau_bb_months_min':
-                        print(f"[debug] Score_bki vs bureau_bb_months_min:")
-                        print(f"  t_stats: {target_stats[i]}")
-                        print(f"  s_stats: {self.source_stats[j]}")
-                        print(f"  t_n: {t_n}")
-                        print(f"  s_n: {s_n}")
-                        print(f"  dist: {np.linalg.norm(t_n - s_n):.4f}")
-                        print(f"  val: {val:.4f}")
+        dist_sim = self._compute_dist_sim(target_stats, n_t)
 
         similarity = self.alpha * sem_sim + self.beta * dist_sim
 
@@ -160,13 +158,6 @@ class FeatureSemanticMatcher:
 
         # Hungarian algorithn
         row_ind, col_ind = linear_sum_assignment(cost_matrix)
-
-        if 'age' in target_col_names:
-            i = target_col_names.index('age')
-            top5 = np.argsort(similarity[i])[::-1][:5]
-            print(f"[debug] age top-5 before Hungarian:")
-            for j in top5:
-                print(f"  {self.source_col_names[j]}: {similarity[i, j]:.3f}")
 
         result = {}
         for i, j in zip(row_ind, col_ind):
@@ -192,12 +183,11 @@ class FeatureSemanticMatcher:
                   f"(total={sim:.3f}, sem={self._last_sem_sim[i, j]:.3f}, stat={self._last_dist_sim[i, j]:.3f})")
             result[target_col_names[i]] = self.source_col_names[j]
 
-        return result  # {new_col: old_col} only correct features
+        return result
 
     def get_match_indices_hungarian(self, X_target, num_col_names,
                                     cat_col_names, min_similarity=0.72, dataset_name=None):
 
-        print(f"[get_match_indices_hungarian] dataset_name={dataset_name}")
 
         all_cols = num_col_names + cat_col_names
 
@@ -216,10 +206,6 @@ class FeatureSemanticMatcher:
                 match_indices['num'][i] = j
             else:
                 match_indices['cat'][i - n_num] = j
-
-        print(f"\nMatching: {len(match_indices['num'])} num, "
-              f"{len(match_indices['cat'])} cat "
-              f"из {len(all_cols)} всего")
 
         return match_indices
 
@@ -263,12 +249,6 @@ class FeatureSemanticMatcher:
 
         return match_indices
 
-    def forward(self, stats: torch.Tensor) -> torch.Tensor:
-        stats_norm = (stats - stats.mean(dim=-1, keepdim=True)) / (
-                stats.std(dim=-1, keepdim=True) + 1e-8
-        )
-        return self.proj(stats_norm)
-
     def save(self, path: str):
         with open(path, "wb") as f: pickle.dump(self, f)
 
@@ -282,12 +262,6 @@ class FeatureSemanticMatcher:
             print(f"[Matcher.load] source_dataset_name: {obj.source_dataset_name}")
         else:
             print(f"[Matcher.load] source_dataset_name: NOT SET (old pkl without descriptions)")
-
-        if 'DAYS_BIRTH' in obj.source_col_names:
-            idx = obj.source_col_names.index('DAYS_BIRTH')
-            emb = obj._source_name_embs[idx]
-            print(f"[Matcher.load] DAYS_BIRTH emb[:5]: {emb[:5]}")
-            print(f"[Matcher.load] DAYS_BIRTH emb norm: {np.linalg.norm(emb):.3f}")
 
         return obj
 
@@ -312,6 +286,10 @@ class FeatureSemanticMatcher:
         for m in matchers:
             for i, col in enumerate(m.source_col_names):
                 if col in seen_cols:
+                    #upd avarage of embeddings (earlier were skip)
+                    idx = all_col_names.index(col)
+                    all_stats[idx] = (all_stats[idx] + m.source_stats[i]) / 2
+                    all_embs[idx] = (all_embs[idx] + m._source_name_embs[i]) / 2
                     continue
                 seen_cols.add(col)
                 all_col_names.append(col)
@@ -439,7 +417,6 @@ class DirectTabTransformer:
             )
 
             # Unzip results
-            # split_results = [arr_train, arr_val, ..., y_train_split, y_val_split]
             n = len(arrays_to_split)
             split_pairs = [(split_results[i * 2], split_results[i * 2 + 1]) for i in range(n)]
             y_train_split, y_val_split = split_results[-2], split_results[-1]

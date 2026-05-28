@@ -4,7 +4,7 @@ run:
   split_type: base
   split_config:
     params:
-      test_size: 0.2         # 70% train, 30% test — честный сплит для файнтюна
+      test_size: 0.2
       random_state: 42
       stratify: true
 
@@ -51,15 +51,11 @@ model:
           warmup_ratio: 0.1
           class_weight: "balanced"
 
-          # ── Alignment Loss ────────────────────────────────
           lambda_align: 0.75
 
-          # ── Transfer: backbone из Stage B ────────────────
           transfer_mode: "finetune"
-          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_stageA_hc.pth
+          backbone_path: C:\Users\Danch\PycharmProjects\Credit_Scoring_Model_w_transformers\models\transformers_\tabtransformer_stageB_gmc.pth
 
-          # none — датасет маленький, всё должно адаптироваться
-          # last_layer — если хочешь сохранить больше знаний из B
           freeze_mode: "none"
 
 metrics:

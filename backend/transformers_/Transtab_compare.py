@@ -185,7 +185,7 @@ def main():
         fpr_curve, tpr_curve, _ = roc_curve(y_true, y_pred_proba)
         ks = float(np.max(tpr_curve - fpr_curve))
 
-        print(f"{'=' * 50}")
+
         print(f"AUC:       {auc:.4f}")
         print(f"KS:        {ks:.4f}")
         print(f"Accuracy:  {acc:.4f}")
@@ -195,7 +195,7 @@ def main():
         print(f"FPR:       {fpr_val:.4f}  (Fall-out)")
         print(f"TNR:       {tnr:.4f}  (Specificity)")
         print(f"F1:        {f1:.4f}")
-        print(f"{'─' * 50}")
+
         print(f"  TN={tn:6d}  FP={fp:6d}")
         print(f"  FN={fn:6d}  TP={tp:6d}")
 
@@ -204,7 +204,6 @@ def main():
 
     auc_final = roc_auc_score(y_test_C, y_pred_proba)
 
-    print(f"{'=' * 50}")
     print(f"TabTransformer (transfer learning):      0.8916")
     print(f"TransTab (without pretrain):                 0.6778")
     print(f"TransTab (with pretrain A+B+C → finetune):  {auc_final:.4f}")

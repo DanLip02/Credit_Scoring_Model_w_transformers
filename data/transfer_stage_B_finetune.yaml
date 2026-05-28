@@ -50,7 +50,7 @@ model:
           # не хотим сломать выученные представления
           lr: 0.00001
           batch_size: 256
-          epochs: 25
+          epochs: 15
           early_stopping_patience: 10
           warmup_ratio: 0.1
           lambda_align: 0.5

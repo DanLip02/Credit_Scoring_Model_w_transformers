@@ -1,13 +1,11 @@
-# tab_transformer.py
 import torch
 import torch.nn as nn
 from scipy import stats as scipy_stats
 import numpy as np
-# import torch.nn.functional as F
 
 def _normalize_for_stats(X):
     """
-    Normalize each feature before statistuc calculation.
+    Normalize each feature before statistшic calculation.
     Remove scale — only compare by form of distribution.
     """
     X_norm = np.zeros_like(X, dtype=np.float32)
@@ -22,9 +20,6 @@ def _normalize_for_stats(X):
         col_norm = (col - mean) / std
         col_norm = np.clip(col_norm, -5, 5)
 
-        if i == 1:
-            print(f"[norm] col {i}: min={col_norm.min():.2f}, max={col_norm.max():.2f}")
-
         X_norm[:, i] = col_norm
 
     return X_norm
@@ -34,10 +29,6 @@ def compute_feature_stats(X: np.ndarray) -> np.ndarray:
     Input:  X [N, n_features]
     Output: stats [n_features, 8] — [mean, std, skew, kurt, min, max, median, iqr]
     """
-    try:
-        use_scipy = True
-    except ImportError:
-        use_scipy = False
 
     result = []
     for i in range(X.shape[1]):
@@ -46,8 +37,8 @@ def compute_feature_stats(X: np.ndarray) -> np.ndarray:
         if len(col_clean) == 0:
             col_clean = np.zeros(1, dtype=np.float32)
         q75, q25 = np.percentile(col_clean, [75, 25])
-        skew = float(scipy_stats.skew(col_clean)) if use_scipy else 0.0
-        kurt = float(scipy_stats.kurtosis(col_clean)) if use_scipy else 0.0
+        skew = float(scipy_stats.skew(col_clean))
+        kurt = float(scipy_stats.kurtosis(col_clean))
 
         zero_ratio = float(np.mean(col_clean == 0))
         unique_ratio = float(len(np.unique(col_clean)) / len(col_clean))
@@ -72,15 +63,13 @@ def compute_feature_stats(X: np.ndarray) -> np.ndarray:
             is_discrete,
             entropy
         ])
-    return np.array(result, dtype=np.float32)  # [n_features, 7]
-
+    return np.array(result, dtype=np.float32)
 
 class FeatureStatEmbedder(nn.Module):
     """
-    Проецирует статистики фичи [9] → [emb_dim].
+    Statistics -> features [9] → [emb_dim].
     Using in stat_based_init for smarter init. of  NumProj/CatEmbeddings.
     """
-
     def __init__(self, emb_dim: int, n_stats: int = 9):
         super().__init__()
         self.proj = nn.Sequential(
@@ -96,15 +85,13 @@ class FeatureStatEmbedder(nn.Module):
 class CatEmbeddings(nn.Module):
     def __init__(self, cardinalities, emb_dim):
         super().__init__()
-        # assert isinstance(emb_dim, int), f"emb_dim must be int, got {type(emb_dim)}, {emb_dim}"
-        self.embs = nn.ModuleList([nn.Embedding(c+1, emb_dim, padding_idx=0) for c in cardinalities])  # +1 for unknown/pad
+        self.embs = nn.ModuleList([nn.Embedding(c+1, emb_dim, padding_idx=0) for c in cardinalities])
 
     def forward(self, x):
         # x: LongTensor [B, n_cat]
         out = []
         for i, emb in enumerate(self.embs):
             out.append(emb(x[:, i]))  # [B, D]
-        # stack -> [B, n_cat, D]
         return torch.stack(out, dim=1)
 
 class NumProj(nn.Module):
@@ -118,7 +105,7 @@ class NumProj(nn.Module):
         # x: [B, n_num]
         x = self.bn(x)
         tokens = []
-        # out = self.proj(x).unsqueeze(1)  # [B, 1, D]   -> All numeric features to one
+        # out = self.proj(x).unsqueeze(1)  # [B, 1, D]   -> All numeric features to one (was used in first version)
 
         for i, layer in enumerate(self.proj):
             token = layer(x[:, i].unsqueeze(1))
@@ -150,12 +137,14 @@ class TabTransformerModel(nn.Module):
         self.cls_token = nn.Parameter(torch.zeros(1, 1, emb_dim))  #cls token - not mean pooling, but with weights.
         self.input_norm = nn.LayerNorm(emb_dim)
         self.pool_weights = nn.Linear(emb_dim, 1)
+
         # self.cls = nn.Sequential(
         #     nn.Linear(emb_dim, mlp_dim),
         #     nn.ReLU(),
         #     nn.Dropout(dropout),
         #     nn.Linear(mlp_dim, 1)
         # )
+
         self.cls = nn.Sequential(
             nn.Linear(emb_dim, mlp_dim),
             nn.LayerNorm(mlp_dim),
@@ -181,7 +170,7 @@ class TabTransformerModel(nn.Module):
             num_token = self.num_proj(num_x)  # [B, 1, D]
             tokens.append(num_token)
 
-        assert len(tokens) > 0, "No catigorical, No numerical!"
+        assert len(tokens) > 0, "No categorical, No numerical"
 
         x = torch.cat(tokens, dim=1)  # [B, seq_len, D]
         x = self.input_norm(x)
@@ -205,15 +194,10 @@ class TabTransformerModel(nn.Module):
 
         mode:
             "full"       — freeze all transformer + cls_token
-                           learn only cat_emb, num_proj, cls (head).
-                           When dataset is small.
 
             "last_layer" — freeze all layers of transformer (last is not).
-                           Balance between adaptation and stability.
-                           When dataset is normal.
 
             "none"       — Full finetune.
-                           Tha task is same (big dataset).
         """
         if mode == "full":
             for p in self.transformer.parameters():
@@ -221,12 +205,10 @@ class TabTransformerModel(nn.Module):
             self.cls_token.requires_grad = False
 
         elif mode == "last_layer":
-
             layers = list(self.transformer.encoder.layers)
             for layer in layers[:-1]:
                 for p in layer.parameters():
                     p.requires_grad = False
-            # Last layer and cls_token are still ready for learning
             for p in layers[-1].parameters():
                 p.requires_grad = True
             self.cls_token.requires_grad = True
@@ -239,6 +221,7 @@ class TabTransformerModel(nn.Module):
 
         trainable = sum(p.numel() for p in self.parameters() if p.requires_grad)
         total = sum(p.numel() for p in self.parameters())
+
         print(f"[freeze_backbone mode={mode}] "
               f"Parameters to learn: {trainable:,} / {total:,} "
               f"({100 * trainable / total:.1f}%)")
@@ -271,9 +254,10 @@ class TabTransformerModel(nn.Module):
         loaded = len(backbone_state)
         expected_missing = [k for k in missing
                             if any(k.startswith(p) for p in ("cat_emb.", "num_proj.", "cls."))]
+
+        #todo add there print to check if missing were found
         real_missing = [k for k in missing if k not in expected_missing]
-        if real_missing:
-            print(f"[load_backbone] not found: {real_missing}")
+
         print(f"[load_backbone] Load {loaded} backbone-wights. "
               f"Input/head init again.")
 
